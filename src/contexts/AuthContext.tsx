@@ -1,8 +1,7 @@
 
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, AuthState, LoginRequest } from '@/types/auth';
 import { apiService } from '@/services/api';
-import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginRequest) => Promise<void>;
@@ -12,90 +11,72 @@ interface AuthContextType extends AuthState {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-type AuthAction = 
-  | { type: 'LOGIN_SUCCESS'; payload: { user: User; token: string } }
-  | { type: 'LOGOUT' }
-  | { type: 'SET_LOADING'; payload: boolean };
-
-const authReducer = (state: AuthState, action: AuthAction): AuthState => {
-  switch (action.type) {
-    case 'LOGIN_SUCCESS':
-      return {
-        user: action.payload.user,
-        token: action.payload.token,
-        isAuthenticated: true,
-      };
-    case 'LOGOUT':
-      return {
-        user: null,
-        token: null,
-        isAuthenticated: false,
-      };
-    default:
-      return state;
-  }
-};
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(authReducer, {
-    user: null,
-    token: null,
-    isAuthenticated: false,
-  });
-  const [loading, setLoading] = React.useState(true);
-  const { toast } = useToast();
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const token = apiService.getToken();
-      if (token) {
-        try {
-          const user = await apiService.getCurrentUser();
-          dispatch({ type: 'LOGIN_SUCCESS', payload: { user, token } });
-        } catch (error) {
-          apiService.clearToken();
-          console.error('Failed to verify token:', error);
-        }
-      }
+    // Check for stored token on app load
+    const storedToken = localStorage.getItem('authToken');
+    if (storedToken) {
+      setToken(storedToken);
+      // Validate token and get user info
+      loadCurrentUser(storedToken);
+    } else {
       setLoading(false);
-    };
-
-    initAuth();
+    }
   }, []);
 
-  const login = async (credentials: LoginRequest) => {
+  const loadCurrentUser = async (authToken: string) => {
     try {
-      setLoading(true);
-      const response = await apiService.login(credentials);
-      apiService.setToken(response.token);
-      dispatch({ type: 'LOGIN_SUCCESS', payload: response });
-      toast({
-        title: "Login Successful",
-        description: `Welcome back, ${response.user.fullName}!`,
-      });
+      const userData = await apiService.getCurrentUser();
+      setUser(userData);
     } catch (error) {
-      toast({
-        title: "Login Failed",
-        description: "Invalid credentials. Please try again.",
-        variant: "destructive",
-      });
-      throw error;
+      console.error('Failed to load user:', error);
+      // Clear invalid token
+      localStorage.removeItem('authToken');
+      setToken(null);
     } finally {
       setLoading(false);
     }
   };
 
+  const login = async (credentials: LoginRequest) => {
+    try {
+      console.log('Attempting login with:', credentials);
+      const response = await apiService.login(credentials);
+      
+      if (response.token && response.user) {
+        setToken(response.token);
+        setUser(response.user);
+        localStorage.setItem('authToken', response.token);
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('Login failed:', error);
+      throw error;
+    }
+  };
+
   const logout = () => {
-    apiService.clearToken();
-    dispatch({ type: 'LOGOUT' });
-    toast({
-      title: "Logged Out",
-      description: "You have been successfully logged out.",
-    });
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('authToken');
+  };
+
+  const value: AuthContextType = {
+    user,
+    token,
+    isAuthenticated: !!user && !!token,
+    login,
+    logout,
+    loading,
   };
 
   return (
-    <AuthContext.Provider value={{ ...state, login, logout, loading }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );
