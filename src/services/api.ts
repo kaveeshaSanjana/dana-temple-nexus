@@ -13,7 +13,7 @@ class ApiService {
     };
   }
 
-  private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
     const url = `${API_BASE_URL}${endpoint}`;
     
     try {
@@ -87,6 +87,10 @@ class ApiService {
     return this.request<Family[]>('/families');
   }
 
+  async getFamily(id: number): Promise<Family> {
+    return this.request<Family>(`/families/${id}`);
+  }
+
   async getFamiliesByTemple(templeId: number): Promise<Family[]> {
     return this.request<Family[]>(`/families/temple/${templeId}`);
   }
@@ -114,6 +118,10 @@ class ApiService {
   // Village endpoints
   async getVillages(): Promise<Village[]> {
     return this.request<Village[]>('/villages');
+  }
+
+  async getVillage(id: number): Promise<Village> {
+    return this.request<Village>(`/villages/${id}`);
   }
 
   async getVillagesByTemple(templeId: number): Promise<Village[]> {
@@ -159,6 +167,26 @@ class ApiService {
 
   async getAllUsers(): Promise<User[]> {
     return this.request<User[]>('/admin/users');
+  }
+
+  async createUser(userData: any): Promise<User> {
+    return this.request<User>('/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async updateUser(id: number, userData: any): Promise<User> {
+    return this.request<User>(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(userData),
+    });
+  }
+
+  async deleteUser(id: number): Promise<void> {
+    return this.request<void>(`/admin/users/${id}`, {
+      method: 'DELETE',
+    });
   }
 }
 
