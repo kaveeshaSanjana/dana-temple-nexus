@@ -23,6 +23,7 @@ interface FamilyFormData {
   phoneNumber?: string;
   villageId?: number;
   members: {
+    id?: number;
     name: string;
     dateOfBirth: string;
     phoneNumber?: string;
@@ -64,14 +65,28 @@ export function FamilyForm({ family, onSuccess, onCancel }: FamilyFormProps) {
   const onSubmit = async (data: FamilyFormData) => {
     setLoading(true);
     try {
+      // Transform the data to match the API expectations
+      const apiData = {
+        name: data.name,
+        address: data.address,
+        phoneNumber: data.phoneNumber,
+        villageId: data.villageId,
+        members: data.members.map((member, index) => ({
+          id: member.id || 0, // Use existing ID or 0 for new members
+          name: member.name,
+          dateOfBirth: member.dateOfBirth,
+          phoneNumber: member.phoneNumber,
+        }))
+      };
+
       if (family?.id) {
-        await apiService.updateFamily(family.id, data);
+        await apiService.updateFamily(family.id, apiData);
         toast({
           title: "Success",
           description: "Family updated successfully",
         });
       } else {
-        await apiService.createFamily(data);
+        await apiService.createFamily(apiData);
         toast({
           title: "Success",
           description: "Family created successfully",
