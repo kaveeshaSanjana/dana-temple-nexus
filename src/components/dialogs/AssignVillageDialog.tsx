@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,6 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Search } from "lucide-react";
 import { VillageDTO, VillageService } from "@/services/villageService";
 import { CreateVillageDialog } from "./CreateVillageDialog";
+import { API_CONFIG } from "@/config/api";
+import { useToast } from "@/hooks/use-toast";
 
 interface Temple {
   id: number;
@@ -30,6 +31,8 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
   const [searchTerm, setSearchTerm] = useState("");
   const [showCreateVillage, setShowCreateVillage] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (open) {
@@ -65,10 +68,44 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
     setFilteredVillages(updatedVillages);
   };
 
-  const handleAssign = () => {
-    console.log("Assigning villages:", selectedVillages, "to temple:", temple?.id);
-    // TODO: Implement actual assignment API call
-    onOpenChange(false);
+  const handleAssign = async () => {
+    if (!temple || selectedVillages.length === 0) return;
+
+    try {
+      setAssigning(true);
+      const token = localStorage.getItem('authToken');
+      
+      for (const villageId of selectedVillages) {
+        const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TEMPLE_VILLAGE_ASSIGN}/${villageId}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to assign village ${villageId} to temple`);
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: `Successfully assigned ${selectedVillages.length} village(s) to temple`,
+      });
+
+      setSelectedVillages([]);
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Failed to assign villages:', error);
+      toast({
+        title: "Error",
+        description: "Failed to assign villages to temple",
+        variant: "destructive",
+      });
+    } finally {
+      setAssigning(false);
+    }
   };
 
   return (
@@ -174,9 +211,9 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
             <Button 
               onClick={handleAssign} 
               className="bg-orange-600 hover:bg-orange-700"
-              disabled={selectedVillages.length === 0}
+              disabled={selectedVillages.length === 0 || assigning}
             >
-              Assign Villages ({selectedVillages.length})
+              {assigning ? "Assigning..." : `Assign Villages (${selectedVillages.length})`}
             </Button>
           </div>
         </DialogContent>

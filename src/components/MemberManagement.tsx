@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Plus, Search, Users, Phone, Calendar, Mail, MapPin, User, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { useForm } from "react-hook-form";
 import { MemberService } from "@/services/memberService";
 import { Member } from "@/types/member";
 import { useToast } from "@/hooks/use-toast";
+import { danaService, TempleDana } from "@/services/danaService";
 
 interface Village {
   id: number;
@@ -42,6 +42,13 @@ interface FamilyMemberForm {
   tempId: string;
 }
 
+interface DanaAssignment {
+  templeDanaId: number;
+  date: string;
+  status: string;
+  tempId: string;
+}
+
 interface FamilyWithMembersRequest {
   family: {
     familyName: string;
@@ -57,13 +64,20 @@ interface FamilyWithMembersRequest {
     dob?: string;
   }[];
   villageId: number;
+  danaAssignments?: {
+    templeDanaId: number;
+    date: string;
+    status: string;
+  }[];
 }
 
 export const MemberManagement = () => {
   const [member, setMember] = useState<Member | null>(null);
   const [villages, setVillages] = useState<Village[]>([]);
+  const [templeDanas, setTempleDanas] = useState<TempleDana[]>([]);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [familyMembers, setFamilyMembers] = useState<FamilyMemberForm[]>([]);
+  const [danaAssignments, setDanaAssignments] = useState<DanaAssignment[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
   const { toast } = useToast();
@@ -79,6 +93,7 @@ export const MemberManagement = () => {
   useEffect(() => {
     setFamilyMembers([{ tempId: '1', name: '', email: '', phoneNumber: '', address: '' }]);
     loadVillages();
+    loadTempleDanas();
   }, []);
 
   const getTempleIdFromToken = () => {
@@ -130,6 +145,26 @@ export const MemberManagement = () => {
     }
   };
 
+  const loadTempleDanas = async () => {
+    try {
+      const templeId = getTempleIdFromToken();
+      if (!templeId) {
+        console.error('No temple ID found in token');
+        return;
+      }
+
+      const data = await danaService.getTempleDanas(templeId);
+      setTempleDanas(data);
+    } catch (error) {
+      console.error('Failed to load temple danas:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load dana types",
+        variant: "destructive",
+      });
+    }
+  };
+
   const searchMemberByPhone = async () => {
     if (!phoneNumber.trim()) return;
     
@@ -171,6 +206,26 @@ export const MemberManagement = () => {
     ));
   };
 
+  const addDanaAssignment = () => {
+    const newId = (danaAssignments.length + 1).toString();
+    setDanaAssignments([...danaAssignments, {
+      tempId: newId,
+      templeDanaId: 0,
+      date: '',
+      status: 'PENDING'
+    }]);
+  };
+
+  const removeDanaAssignment = (tempId: string) => {
+    setDanaAssignments(danaAssignments.filter(assignment => assignment.tempId !== tempId));
+  };
+
+  const updateDanaAssignment = (tempId: string, field: keyof DanaAssignment, value: string | number) => {
+    setDanaAssignments(danaAssignments.map(assignment => 
+      assignment.tempId === tempId ? { ...assignment, [field]: value } : assignment
+    ));
+  };
+
   const handleCreateFamilyWithMembers = async (familyData: { villageId: number; familyName: string; address: string; telephone: string }) => {
     try {
       setLoading(true);
@@ -194,6 +249,10 @@ export const MemberManagement = () => {
         return;
       }
 
+      const validDanaAssignments = danaAssignments.filter(assignment => 
+        assignment.templeDanaId && assignment.date
+      );
+
       const familyWithMembers: FamilyWithMembersRequest = {
         family: {
           familyName: familyData.familyName,
@@ -211,6 +270,14 @@ export const MemberManagement = () => {
         villageId: familyData.villageId
       };
 
+      if (validDanaAssignments.length > 0) {
+        familyWithMembers.danaAssignments = validDanaAssignments.map(assignment => ({
+          templeDanaId: assignment.templeDanaId,
+          date: assignment.date,
+          status: assignment.status,
+        }));
+      }
+
       const response = await fetch('http://localhost:8081/api/family/assign-members-at-once', {
         method: 'POST',
         headers: {
@@ -227,6 +294,7 @@ export const MemberManagement = () => {
       // Reset forms
       familyWithMembersForm.reset();
       setFamilyMembers([{ tempId: '1', name: '', email: '', phoneNumber: '', address: '' }]);
+      setDanaAssignments([]);
       
       toast({
         title: "Success",
@@ -504,6 +572,84 @@ export const MemberManagement = () => {
                               onChange={(e) => updateFamilyMemberForm(member.tempId, 'dob', e.target.value)}
                               className="h-10"
                             />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Dana Assignments Section */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-medium text-lg text-gray-900">Dana Assignments</h4>
+                      <Button 
+                        type="button" 
+                        onClick={addDanaAssignment} 
+                        variant="outline"
+                        className="bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Dana Assignment
+                      </Button>
+                    </div>
+
+                    {danaAssignments.map((assignment, index) => (
+                      <div key={assignment.tempId} className="border border-gray-200 rounded-lg p-4 bg-orange-50">
+                        <div className="flex justify-between items-center mb-4">
+                          <h5 className="font-medium text-gray-900">Dana Assignment {index + 1}</h5>
+                          <Button 
+                            type="button"
+                            onClick={() => removeDanaAssignment(assignment.tempId)}
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 border-red-200 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Dana Type *</label>
+                            <Select onValueChange={(value) => updateDanaAssignment(assignment.tempId, 'templeDanaId', parseInt(value))}>
+                              <SelectTrigger className="h-10">
+                                <SelectValue placeholder="Select dana type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {templeDanas.map((templeDana) => (
+                                  <SelectItem key={templeDana.dana.id} value={templeDana.dana.id.toString()}>
+                                    {templeDana.dana.name} ({templeDana.dana.time})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Date *</label>
+                            <Input
+                              type="date"
+                              value={assignment.date}
+                              onChange={(e) => updateDanaAssignment(assignment.tempId, 'date', e.target.value)}
+                              className="h-10"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Status</label>
+                            <Select 
+                              value={assignment.status}
+                              onValueChange={(value) => updateDanaAssignment(assignment.tempId, 'status', value)}
+                            >
+                              <SelectTrigger className="h-10">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="PENDING">PENDING</SelectItem>
+                                <SelectItem value="CONFIRMED">CONFIRMED</SelectItem>
+                                <SelectItem value="CANCELLED">CANCELLED</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
                         </div>
                       </div>

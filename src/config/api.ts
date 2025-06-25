@@ -24,6 +24,7 @@ export const API_CONFIG = {
     ASSIGN_MEMBERS_TO_FAMILY: '/family/assign-members',
     ASSIGN_MEMBERS_TO_FAMILY_AT_ONCE: '/family/assign-members-at-once',
     TEMPLE_VILLAGE_BY_TEMPLE: '/temple-village/by-temple',
+    TEMPLE_VILLAGE_ASSIGN: '/temple-village/assign-village',
     TEMPLE: '/temple',
     VILLAGE: '/village',
     HEAD_MONK: '/head-monk',
