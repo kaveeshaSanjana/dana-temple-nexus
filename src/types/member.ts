@@ -1,4 +1,5 @@
 
+
 export interface Member {
   id?: number;
   name: string;
@@ -32,12 +33,20 @@ export interface FamilyWithMembersDTO {
   family: {
     familyName: string;
     address: string;
-    telephone: string;
+    phoneNumber: string;
   };
   members: {
-    name: string;
-    email: string;
+    firstName: string;
+    lastName: string;
+    nic?: string;
     phoneNumber: string;
     address: string;
+  }[];
+  danaAssignments?: {
+    templeDana: {
+      id: number;
+    };
+    danaDate: string;
+    description: string;
   }[];
 }
