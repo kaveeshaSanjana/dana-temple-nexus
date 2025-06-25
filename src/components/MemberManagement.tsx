@@ -10,14 +10,53 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { MemberService } from "@/services/memberService";
-import { Member, Village, FamilyWithMembersDTO } from "@/types/member";
+import { Member } from "@/types/member";
+import { useToast } from "@/hooks/use-toast";
+
+interface Village {
+  id: number;
+  villageName: string;
+  templeId: number;
+}
+
+interface TempleVillage {
+  templeId: number | null;
+  village: {
+    id: number;
+    name: string;
+    province: string;
+    district: string;
+    country: string;
+    postalCode: string;
+  };
+  villageFamilies: any[];
+}
 
 interface FamilyMemberForm {
   name: string;
   email: string;
   phoneNumber: string;
   address: string;
+  nic?: string;
+  dob?: string;
   tempId: string;
+}
+
+interface FamilyWithMembersRequest {
+  family: {
+    familyName: string;
+    address: string;
+    telephone: string;
+  };
+  members: {
+    name: string;
+    email: string;
+    phoneNumber: string;
+    address: string;
+    nic?: string;
+    dob?: string;
+  }[];
+  villageId: number;
 }
 
 export const MemberManagement = () => {
@@ -27,6 +66,7 @@ export const MemberManagement = () => {
   const [familyMembers, setFamilyMembers] = useState<FamilyMemberForm[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchLoading, setSearchLoading] = useState(false);
+  const { toast } = useToast();
 
   const familyWithMembersForm = useForm<{
     villageId: number;
@@ -41,15 +81,52 @@ export const MemberManagement = () => {
     loadVillages();
   }, []);
 
+  const getTempleIdFromToken = () => {
+    const authToken = localStorage.getItem('authToken');
+    if (authToken) {
+      try {
+        const payload = JSON.parse(atob(authToken.split('.')[1]));
+        return payload.templeId;
+      } catch (error) {
+        console.error('Error parsing auth token:', error);
+      }
+    }
+    return null;
+  };
+
   const loadVillages = async () => {
     try {
-      // For now, using a placeholder temple ID. In real implementation, 
-      // this would come from the JWT token or user context
-      const templeId = 1; // This should be extracted from authentication
-      const data = await MemberService.getVillagesByTemple(templeId);
-      setVillages(data);
+      const templeId = getTempleIdFromToken();
+      if (!templeId) {
+        console.error('No temple ID found in token');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:8081/api/temple-village/by-temple/${templeId}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch villages');
+      }
+
+      const data: TempleVillage[] = await response.json();
+      const villageList: Village[] = data.map(tv => ({
+        id: tv.village.id,
+        villageName: tv.village.name,
+        templeId: templeId
+      }));
+      
+      setVillages(villageList);
     } catch (error) {
       console.error('Failed to load villages:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load villages",
+        variant: "destructive",
+      });
     }
   };
 
@@ -100,17 +177,24 @@ export const MemberManagement = () => {
       const validMembers = familyMembers.filter(member => member.name && member.email && member.phoneNumber);
       
       if (validMembers.length === 0) {
-        alert('Please add at least one valid member');
+        toast({
+          title: "Error",
+          description: "Please add at least one valid member",
+          variant: "destructive",
+        });
         return;
       }
 
       if (!familyData.villageId) {
-        alert('Please select a village');
+        toast({
+          title: "Error",
+          description: "Please select a village",
+          variant: "destructive",
+        });
         return;
       }
 
-      const familyWithMembers: FamilyWithMembersDTO = {
-        villageId: familyData.villageId,
+      const familyWithMembers: FamilyWithMembersRequest = {
         family: {
           familyName: familyData.familyName,
           address: familyData.address,
@@ -121,19 +205,40 @@ export const MemberManagement = () => {
           email: member.email,
           phoneNumber: member.phoneNumber,
           address: member.address,
-        }))
+          ...(member.nic && { nic: member.nic }),
+          ...(member.dob && { dob: member.dob }),
+        })),
+        villageId: familyData.villageId
       };
 
-      await MemberService.assignMembersToFamilyAtOnce(familyWithMembers);
+      const response = await fetch('http://localhost:8081/api/family/assign-members-at-once', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+        },
+        body: JSON.stringify(familyWithMembers),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create family with members');
+      }
       
       // Reset forms
       familyWithMembersForm.reset();
       setFamilyMembers([{ tempId: '1', name: '', email: '', phoneNumber: '', address: '' }]);
       
-      alert('Family with members created successfully!');
+      toast({
+        title: "Success",
+        description: "Family with members created successfully!",
+      });
     } catch (error) {
       console.error('Failed to create family with members:', error);
-      alert('Failed to create family with members');
+      toast({
+        title: "Error",
+        description: "Failed to create family with members",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -377,6 +482,26 @@ export const MemberManagement = () => {
                               value={member.address}
                               onChange={(e) => updateFamilyMemberForm(member.tempId, 'address', e.target.value)}
                               placeholder="Member address"
+                              className="h-10"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">NIC Number</label>
+                            <Input
+                              value={member.nic || ''}
+                              onChange={(e) => updateFamilyMemberForm(member.tempId, 'nic', e.target.value)}
+                              placeholder="NIC number (optional)"
+                              className="h-10"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Date of Birth</label>
+                            <Input
+                              type="date"
+                              value={member.dob || ''}
+                              onChange={(e) => updateFamilyMemberForm(member.tempId, 'dob', e.target.value)}
                               className="h-10"
                             />
                           </div>

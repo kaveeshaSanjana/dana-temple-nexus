@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User, Mail, Phone, MapPin, Edit2, Save, X, Calendar, CreditCard } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MemberService } from "@/services/memberService";
+import { HeadMonkService, HeadMonkProfile } from "@/services/headMonkService";
 import { Member } from "@/types/member";
 
 interface UserData {
@@ -31,7 +32,11 @@ export const Profile = () => {
   const [memberData, setMemberData] = useState<Member | null>(null);
   const [editMemberData, setEditMemberData] = useState<Member | null>(null);
 
-  // Mock user data for non-member roles
+  // State for head monk data
+  const [headMonkData, setHeadMonkData] = useState<HeadMonkProfile | null>(null);
+  const [editHeadMonkData, setEditHeadMonkData] = useState<HeadMonkProfile | null>(null);
+
+  // Mock user data for other roles
   const [userData, setUserData] = useState<UserData>({
     name: "John Doe",
     email: "john.doe@email.com",
@@ -47,6 +52,8 @@ export const Profile = () => {
   useEffect(() => {
     if (userRole === "member" && userId) {
       fetchMemberData();
+    } else if (userRole === "headmonk" && userId) {
+      fetchHeadMonkData();
     } else {
       setLoading(false);
     }
@@ -61,6 +68,25 @@ export const Profile = () => {
       setEditMemberData(data);
     } catch (error) {
       console.error('Error fetching member data:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load profile data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchHeadMonkData = async () => {
+    try {
+      if (!userId) return;
+      
+      const data = await HeadMonkService.getHeadMonkProfile(parseInt(userId));
+      setHeadMonkData(data);
+      setEditHeadMonkData(data);
+    } catch (error) {
+      console.error('Error fetching head monk data:', error);
       toast({
         title: "Error",
         description: "Failed to load profile data",
@@ -89,8 +115,25 @@ export const Profile = () => {
           variant: "destructive",
         });
       }
+    } else if (userRole === "headmonk" && editHeadMonkData && headMonkData) {
+      try {
+        const updatedHeadMonk = await HeadMonkService.updateHeadMonkProfile(headMonkData.id, editHeadMonkData);
+        setHeadMonkData(updatedHeadMonk);
+        setIsEditing(false);
+        toast({
+          title: "Profile Updated",
+          description: "Your profile has been successfully updated.",
+        });
+      } catch (error) {
+        console.error('Error updating head monk data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to update profile",
+          variant: "destructive",
+        });
+      }
     } else {
-      // Mock update for non-member roles
+      // Mock update for other roles
       if (editUserData) {
         setUserData(editUserData);
       }
@@ -105,6 +148,8 @@ export const Profile = () => {
   const handleCancel = () => {
     if (userRole === "member" && memberData) {
       setEditMemberData(memberData);
+    } else if (userRole === "headmonk" && headMonkData) {
+      setEditHeadMonkData(headMonkData);
     } else {
       setEditUserData(userData);
     }
@@ -133,9 +178,11 @@ export const Profile = () => {
     );
   }
 
-  const displayName = userRole === "member" ? memberData?.name : userData.name;
+  const displayName = userRole === "member" ? memberData?.name : 
+                     userRole === "headmonk" ? headMonkData?.monkName : 
+                     userData.name;
 
-  if (userRole === "member" && !memberData) {
+  if ((userRole === "member" && !memberData) || (userRole === "headmonk" && !headMonkData)) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-lg">Unable to load profile data</div>
@@ -153,7 +200,11 @@ export const Profile = () => {
         {!isEditing && (
           <Button onClick={() => {
             setIsEditing(true);
-            if (userRole !== "member") {
+            if (userRole === "member") {
+              // Already set
+            } else if (userRole === "headmonk") {
+              // Already set
+            } else {
               setEditUserData(userData);
             }
           }} variant="outline">
@@ -175,7 +226,7 @@ export const Profile = () => {
             <div>
               <CardTitle className="text-2xl">{displayName}</CardTitle>
               <p className="text-orange-600 font-medium">{getRoleDisplayName(userRole)}</p>
-              {userRole !== "member" && (
+              {userRole !== "member" && userRole !== "headmonk" && (
                 <p className="text-sm text-gray-500">Member since {userData.joinDate}</p>
               )}
             </div>
@@ -189,10 +240,14 @@ export const Profile = () => {
                   <Label htmlFor="name">Full Name</Label>
                   <Input
                     id="name"
-                    value={userRole === "member" ? editMemberData?.name || "" : editUserData?.name || ""}
+                    value={userRole === "member" ? editMemberData?.name || "" : 
+                           userRole === "headmonk" ? editHeadMonkData?.monkName || "" :
+                           editUserData?.name || ""}
                     onChange={(e) => {
                       if (userRole === "member") {
                         setEditMemberData(prev => prev ? { ...prev, name: e.target.value } : null);
+                      } else if (userRole === "headmonk") {
+                        setEditHeadMonkData(prev => prev ? { ...prev, monkName: e.target.value } : null);
                       } else {
                         setEditUserData(prev => prev ? { ...prev, name: e.target.value } : null);
                       }
@@ -204,12 +259,32 @@ export const Profile = () => {
                   <Input
                     id="email"
                     type="email"
-                    value={userRole === "member" ? editMemberData?.email || "" : editUserData?.email || ""}
+                    value={userRole === "member" ? editMemberData?.email || "" : 
+                           userRole === "headmonk" ? editHeadMonkData?.email || "" :
+                           editUserData?.email || ""}
                     onChange={(e) => {
                       if (userRole === "member") {
                         setEditMemberData(prev => prev ? { ...prev, email: e.target.value } : null);
+                      } else if (userRole === "headmonk") {
+                        setEditHeadMonkData(prev => prev ? { ...prev, email: e.target.value } : null);
                       } else {
                         setEditUserData(prev => prev ? { ...prev, email: e.target.value } : null);
+                      }
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number{(userRole === "member" || userRole === "headmonk") ? " (Read-only)" : ""}</Label>
+                  <Input
+                    id="phone"
+                    value={userRole === "member" ? editMemberData?.phoneNumber || "" : 
+                           userRole === "headmonk" ? editHeadMonkData?.phoneNumber || "" :
+                           editUserData?.phone || ""}
+                    disabled={userRole === "member" || userRole === "headmonk"}
+                    className={userRole === "member" || userRole === "headmonk" ? "bg-gray-100" : ""}
+                    onChange={(e) => {
+                      if (userRole !== "member" && userRole !== "headmonk") {
+                        setEditUserData(prev => prev ? { ...prev, phone: e.target.value } : null);
                       }
                     }}
                   />
@@ -233,46 +308,31 @@ export const Profile = () => {
                         onChange={(e) => setEditMemberData(prev => prev ? { ...prev, dob: e.target.value } : null)}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number (Read-only)</Label>
-                      <Input
-                        id="phone"
-                        value={editMemberData?.phoneNumber || ""}
-                        disabled
-                        className="bg-gray-100"
-                      />
-                    </div>
                   </>
                 )}
-                {userRole !== "member" && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
-                      <Input
-                        id="phone"
-                        value={editUserData?.phone || ""}
-                        onChange={(e) => setEditUserData(prev => prev ? { ...prev, phone: e.target.value } : null)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="temple">Assigned Temple</Label>
-                      <Input
-                        id="temple"
-                        value={editUserData?.templeAssigned || ""}
-                        onChange={(e) => setEditUserData(prev => prev ? { ...prev, templeAssigned: e.target.value } : null)}
-                      />
-                    </div>
-                  </>
+                {userRole !== "member" && userRole !== "headmonk" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="temple">Assigned Temple</Label>
+                    <Input
+                      id="temple"
+                      value={editUserData?.templeAssigned || ""}
+                      onChange={(e) => setEditUserData(prev => prev ? { ...prev, templeAssigned: e.target.value } : null)}
+                    />
+                  </div>
                 )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="address">Address</Label>
                 <Input
                   id="address"
-                  value={userRole === "member" ? editMemberData?.address || "" : editUserData?.address || ""}
+                  value={userRole === "member" ? editMemberData?.address || "" : 
+                         userRole === "headmonk" ? editHeadMonkData?.address || "" :
+                         editUserData?.address || ""}
                   onChange={(e) => {
                     if (userRole === "member") {
                       setEditMemberData(prev => prev ? { ...prev, address: e.target.value } : null);
+                    } else if (userRole === "headmonk") {
+                      setEditHeadMonkData(prev => prev ? { ...prev, address: e.target.value } : null);
                     } else {
                       setEditUserData(prev => prev ? { ...prev, address: e.target.value } : null);
                     }
@@ -304,14 +364,18 @@ export const Profile = () => {
                   <Mail className="h-5 w-5 text-gray-400" />
                   <div>
                     <p className="text-sm font-medium text-gray-500">Email Address</p>
-                    <p className="text-gray-900">{userRole === "member" ? memberData?.email : userData.email}</p>
+                    <p className="text-gray-900">{userRole === "member" ? memberData?.email : 
+                                                    userRole === "headmonk" ? headMonkData?.email :
+                                                    userData.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
                   <Phone className="h-5 w-5 text-gray-400" />
                   <div>
                     <p className="text-sm font-medium text-gray-500">Phone Number</p>
-                    <p className="text-gray-900">{userRole === "member" ? memberData?.phoneNumber : userData.phone}</p>
+                    <p className="text-gray-900">{userRole === "member" ? memberData?.phoneNumber : 
+                                                    userRole === "headmonk" ? headMonkData?.phoneNumber :
+                                                    userData.phone}</p>
                   </div>
                 </div>
               </div>
@@ -320,7 +384,9 @@ export const Profile = () => {
                   <MapPin className="h-5 w-5 text-gray-400" />
                   <div>
                     <p className="text-sm font-medium text-gray-500">Address</p>
-                    <p className="text-gray-900">{userRole === "member" ? memberData?.address : userData.address}</p>
+                    <p className="text-gray-900">{userRole === "member" ? memberData?.address : 
+                                                    userRole === "headmonk" ? headMonkData?.address :
+                                                    userData.address}</p>
                   </div>
                 </div>
                 {userRole === "member" && memberData && (
@@ -341,7 +407,7 @@ export const Profile = () => {
                     </div>
                   </>
                 )}
-                {userRole !== "member" && (
+                {userRole !== "member" && userRole !== "headmonk" && (
                   <div className="p-4 bg-orange-50 rounded-lg">
                     <p className="text-sm font-medium text-orange-800">Assigned Temple</p>
                     <p className="text-orange-700">{userData.templeAssigned}</p>
