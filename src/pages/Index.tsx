@@ -1,36 +1,19 @@
 
-import { useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import Login from "./Login";
 
 const Index = () => {
-  const { isAuthenticated, loading } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    if (!loading && isAuthenticated) {
-      // User is authenticated, they will be redirected by App.tsx
-      return;
+    const isLoggedIn = localStorage.getItem("isLoggedIn");
+    if (isLoggedIn) {
+      navigate("/dashboard");
     }
-  }, [isAuthenticated, loading]);
+  }, [navigate]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-blue-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-blue-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-blue-50">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4 text-blue-900">Welcome to Dana Management System</h1>
-        <p className="text-xl text-blue-600">Please sign in to continue</p>
-      </div>
-    </div>
-  );
+  return <Login />;
 };
 
 export default Index;
