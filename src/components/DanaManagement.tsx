@@ -16,11 +16,18 @@ export const DanaManagement = () => {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const { toast } = useToast();
 
-  // Get temple ID from localStorage (assuming it's stored after login)
   const getTempleId = () => {
-    const authData = localStorage.getItem('authToken');
-    // For now, we'll use a default temple ID. In a real app, you'd parse the JWT token
-    return 1; // This should be extracted from the auth token
+    const authToken = localStorage.getItem('authToken');
+    if (authToken) {
+      try {
+        // Parse JWT token to get temple ID
+        const payload = JSON.parse(atob(authToken.split('.')[1]));
+        return payload.templeId;
+      } catch (error) {
+        console.error('Error parsing auth token:', error);
+      }
+    }
+    return null;
   };
 
   useEffect(() => {
@@ -31,6 +38,15 @@ export const DanaManagement = () => {
     setLoading(true);
     try {
       const templeId = getTempleId();
+      if (!templeId) {
+        toast({
+          title: "Error",
+          description: "Temple ID not found",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const data = await danaService.getTempleDanas(templeId);
       setTempleDanas(data);
     } catch (error) {

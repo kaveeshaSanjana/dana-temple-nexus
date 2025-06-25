@@ -14,6 +14,20 @@ export interface TempleDana {
   minNumberOfFamilies: number;
 }
 
+const getTempleId = () => {
+  const authToken = localStorage.getItem('authToken');
+  if (authToken) {
+    try {
+      // Parse JWT token to get temple ID
+      const payload = JSON.parse(atob(authToken.split('.')[1]));
+      return payload.templeId;
+    } catch (error) {
+      console.error('Error parsing auth token:', error);
+    }
+  }
+  return null;
+};
+
 export const danaService = {
   getTempleDanas: async (templeId: number): Promise<TempleDana[]> => {
     const token = localStorage.getItem('authToken');
