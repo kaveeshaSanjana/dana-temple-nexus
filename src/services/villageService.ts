@@ -1,14 +1,13 @@
 
 import { API_CONFIG } from '@/config/api';
 import { AuthService } from '@/services/authService';
-import { Province, District, Town } from '@/services/locationService';
 
 export interface VillageDTO {
   id?: number;
   name: string;
-  province: Province;
-  district: District;
-  town: Town;
+  province: string;
+  district: string;
+  town: string | null;
   country: string;
   postalCode: string;
 }

@@ -9,9 +9,9 @@ export interface Temple {
   contactNumber: string;
   email: string;
   website: string;
-  province: Province;
-  district: District;
-  town: Town;
+  province: string | null;
+  district: string | null;
+  town: string | null;
 }
 
 export interface Province {

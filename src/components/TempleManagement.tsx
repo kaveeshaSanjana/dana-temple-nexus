@@ -189,19 +189,19 @@ export const TempleManagement = () => {
                 {temple.province && (
                   <div>
                     <p className="text-xs sm:text-sm text-gray-500">Province</p>
-                    <p className="text-xs sm:text-sm font-medium">{temple.province.name}</p>
+                    <p className="text-xs sm:text-sm font-medium">{temple.province}</p>
                   </div>
                 )}
                 {temple.district && (
                   <div>
                     <p className="text-xs sm:text-sm text-gray-500">District</p>
-                    <p className="text-xs sm:text-sm font-medium">{temple.district.name}</p>
+                    <p className="text-xs sm:text-sm font-medium">{temple.district}</p>
                   </div>
                 )}
                 {temple.town && (
                   <div>
                     <p className="text-xs sm:text-sm text-gray-500">Town</p>
-                    <p className="text-xs sm:text-sm font-medium">{temple.town.name}</p>
+                    <p className="text-xs sm:text-sm font-medium">{temple.town}</p>
                   </div>
                 )}
                 <div className="flex flex-col gap-2 pt-2">

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,12 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, Search, MapPin } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { VillageDTO, VillageService } from "@/services/villageService";
 import { CreateVillageDialog } from "./CreateVillageDialog";
 import { API_CONFIG } from "@/config/api";
 import { useToast } from "@/hooks/use-toast";
-import { LocationService, Temple, Province, District, Town } from "@/services/locationService";
+import { LocationService, Temple } from "@/services/locationService";
 
 interface AssignVillageDialogProps {
   open: boolean;
@@ -33,9 +31,9 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [templeData, setTempleData] = useState<Temple | null>(null);
-  const [provinces, setProvinces] = useState<Province[]>([]);
-  const [districts, setDistricts] = useState<District[]>([]);
-  const [towns, setTowns] = useState<Town[]>([]);
+  const [provinces, setProvinces] = useState<string[]>([]);
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [towns, setTowns] = useState<string[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -63,36 +61,26 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
       setExistingVillages(existingData);
       setTempleData(templeDetails);
       
-      // Extract unique location data from temple and villages
-      const uniqueProvinces = new Map();
-      const uniqueDistricts = new Map();
-      const uniqueTowns = new Map();
-      
-      if (templeDetails.province) {
-        uniqueProvinces.set(templeDetails.province.id, templeDetails.province);
-        if (templeDetails.district) {
-          uniqueDistricts.set(templeDetails.district.id, templeDetails.district);
-          if (templeDetails.town) {
-            uniqueTowns.set(templeDetails.town.id, templeDetails.town);
-          }
-        }
-      }
+      // Extract unique location data from villages
+      const uniqueProvinces = new Set<string>();
+      const uniqueDistricts = new Set<string>();
+      const uniqueTowns = new Set<string>();
       
       villagesData.forEach(village => {
         if (village.province) {
-          uniqueProvinces.set(village.province.id, village.province);
-          if (village.district) {
-            uniqueDistricts.set(village.district.id, village.district);
-            if (village.town) {
-              uniqueTowns.set(village.town.id, village.town);
-            }
-          }
+          uniqueProvinces.add(village.province);
+        }
+        if (village.district) {
+          uniqueDistricts.add(village.district);
+        }
+        if (village.town) {
+          uniqueTowns.add(village.town);
         }
       });
       
-      setProvinces(Array.from(uniqueProvinces.values()));
-      setDistricts(Array.from(uniqueDistricts.values()));
-      setTowns(Array.from(uniqueTowns.values()));
+      setProvinces(Array.from(uniqueProvinces));
+      setDistricts(Array.from(uniqueDistricts));
+      setTowns(Array.from(uniqueTowns));
     } catch (error) {
       console.error('Failed to load data:', error);
     } finally {
@@ -103,12 +91,12 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
   const applyFilters = () => {
     let filtered = villages.filter(village => {
       const matchesSearch = village.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        village.district?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        village.province?.name.toLowerCase().includes(searchTerm.toLowerCase());
+        village.district?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        village.province?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesProvince = selectedProvince === 'all' || village.province?.id.toString() === selectedProvince;
-      const matchesDistrict = selectedDistrict === 'all' || village.district?.id.toString() === selectedDistrict;
-      const matchesTown = selectedTown === 'all' || village.town?.id.toString() === selectedTown;
+      const matchesProvince = selectedProvince === 'all' || village.province === selectedProvince;
+      const matchesDistrict = selectedDistrict === 'all' || village.district === selectedDistrict;
+      const matchesTown = selectedTown === 'all' || village.town === selectedTown;
       
       return matchesSearch && matchesProvince && matchesDistrict && matchesTown;
     });
@@ -116,14 +104,14 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
     setFilteredVillages(filtered);
   };
 
-  const handleProvinceChange = (provinceId: string) => {
-    setSelectedProvince(provinceId);
+  const handleProvinceChange = (provinceValue: string) => {
+    setSelectedProvince(provinceValue);
     setSelectedDistrict('all');
     setSelectedTown('all');
   };
 
-  const handleDistrictChange = (districtId: string) => {
-    setSelectedDistrict(districtId);
+  const handleDistrictChange = (districtValue: string) => {
+    setSelectedDistrict(districtValue);
     setSelectedTown('all');
   };
 
@@ -172,15 +160,23 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
   };
 
   const getFilteredDistricts = () => {
-    return districts.filter(district => 
-      selectedProvince === 'all' || district.province.id.toString() === selectedProvince
-    );
+    if (selectedProvince === 'all') return districts;
+    return districts.filter(district => {
+      // Find villages with this district and check if they belong to selected province
+      return villages.some(village => 
+        village.district === district && village.province === selectedProvince
+      );
+    });
   };
 
   const getFilteredTowns = () => {
-    return towns.filter(town => 
-      selectedDistrict === 'all' || town.district.id.toString() === selectedDistrict
-    );
+    if (selectedDistrict === 'all') return towns;
+    return towns.filter(town => {
+      // Find villages with this town and check if they belong to selected district
+      return villages.some(village => 
+        village.town === town && village.district === selectedDistrict
+      );
+    });
   };
 
   return (
@@ -236,7 +232,7 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                           <div>
                             <div className="font-medium">{item.village?.name}</div>
                             <div className="text-sm text-gray-500">
-                              {item.village?.district?.name}, {item.village?.province?.name}
+                              {item.village?.district}, {item.village?.province}
                             </div>
                           </div>
                         </div>
@@ -284,8 +280,8 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                         <SelectContent>
                           <SelectItem value="all">All provinces</SelectItem>
                           {provinces.map((province) => (
-                            <SelectItem key={province.id} value={province.id.toString()}>
-                              {province.name}
+                            <SelectItem key={province} value={province}>
+                              {province}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -305,8 +301,8 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                         <SelectContent>
                           <SelectItem value="all">All districts</SelectItem>
                           {getFilteredDistricts().map((district) => (
-                            <SelectItem key={district.id} value={district.id.toString()}>
-                              {district.name}
+                            <SelectItem key={district} value={district}>
+                              {district}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -326,8 +322,8 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                         <SelectContent>
                           <SelectItem value="all">All towns</SelectItem>
                           {getFilteredTowns().map((town) => (
-                            <SelectItem key={town.id} value={town.id.toString()}>
-                              {town.name}
+                            <SelectItem key={town} value={town}>
+                              {town}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -359,7 +355,7 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                           <label htmlFor={`village-${village.id}`} className="text-sm flex-1 cursor-pointer">
                             <div className="font-medium">{village.name}</div>
                             <div className="text-gray-500 text-xs">
-                              {village.town?.name}, {village.district?.name}, {village.province?.name} - {village.postalCode}
+                              {village.town && `${village.town}, `}{village.district}, {village.province} - {village.postalCode}
                             </div>
                           </label>
                         </div>
