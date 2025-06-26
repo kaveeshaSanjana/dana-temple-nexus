@@ -21,68 +21,72 @@ interface AssignVillageDialogProps {
 export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillageDialogProps) => {
   const [selectedVillage, setSelectedVillage] = useState<string>('');
   const [villages, setVillages] = useState<VillageDTO[]>([]);
-  const [existingVillages, setExistingVillages] = useState<any[]>([]);
+  const [existingVillages, setExistingVillages] = useState<VillageDTO[]>([]);
   const [filteredVillages, setFilteredVillages] = useState<VillageDTO[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedProvince, setSelectedProvince] = useState<string>('all');
-  const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
-  const [selectedTown, setSelectedTown] = useState<string>('all');
+  const [selectedProvince, setSelectedProvince] = useState<string>('');
+  const [selectedDistrict, setSelectedDistrict] = useState<string>('');
+  const [selectedTown, setSelectedTown] = useState<string>('');
   const [showCreateVillage, setShowCreateVillage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
   const [templeData, setTempleData] = useState<Temple | null>(null);
-  const [provinces, setProvinces] = useState<string[]>([]);
-  const [districts, setDistricts] = useState<string[]>([]);
-  const [towns, setTowns] = useState<string[]>([]);
   const { toast } = useToast();
+
+  // Predefined enum values - you may need to adjust these based on your backend
+  const provinces = ['WESTERN', 'CENTRAL', 'SOUTHERN', 'NORTHERN', 'EASTERN', 'NORTH_WESTERN', 'NORTH_CENTRAL', 'UVA', 'SABARAGAMUWA'];
+  const districts = ['COLOMBO', 'GAMPAHA', 'KALUTARA', 'KANDY', 'MATALE', 'NUWARA_ELIYA', 'GALLE', 'MATARA', 'HAMBANTOTA', 'JAFFNA', 'KILINOCHCHI', 'MANNAR', 'MULLAITIVU', 'VAVUNIYA', 'BATTICALOA', 'AMPARA', 'TRINCOMALEE', 'KURUNEGALA', 'PUTTALAM', 'ANURADHAPURA', 'POLONNARUWA', 'BADULLA', 'MONERAGALA', 'RATNAPURA', 'KEGALLE'];
+  const towns = ['COLOMBO', 'DEHIWALA', 'MORATUWA', 'KOTTE', 'MAHARAGAMA', 'KESBEWA', 'KADUWELA', 'HOMAGAMA', 'KANDY', 'PERADENIYA', 'GAMPOLA', 'NAWALAPITIYA', 'GALLE', 'HIKKADUWA', 'AMBALANGODA', 'BENTARA'];
 
   useEffect(() => {
     if (open && temple) {
-      loadData();
+      loadInitialData();
     }
   }, [open, temple]);
 
   useEffect(() => {
     applyFilters();
-  }, [villages, searchTerm, selectedProvince, selectedDistrict, selectedTown]);
+  }, [villages, searchTerm]);
 
-  const loadData = async () => {
+  const loadInitialData = async () => {
     if (!temple) return;
 
     try {
       setLoading(true);
-      const [villagesData, existingData, templeDetails] = await Promise.all([
-        VillageService.getAllVillages(),
-        LocationService.getVillagesByTemple(temple.id),
-        LocationService.getTempleById(temple.id)
+      const [templeDetails, existingData] = await Promise.all([
+        LocationService.getTempleById(temple.id),
+        VillageService.getVillagesByTemple(temple.id)
       ]);
       
-      setVillages(villagesData);
-      setExistingVillages(existingData);
       setTempleData(templeDetails);
+      setExistingVillages(existingData);
       
-      // Extract unique location data from villages
-      const uniqueProvinces = new Set<string>();
-      const uniqueDistricts = new Set<string>();
-      const uniqueTowns = new Set<string>();
-      
-      villagesData.forEach(village => {
-        if (village.province) {
-          uniqueProvinces.add(village.province);
-        }
-        if (village.district) {
-          uniqueDistricts.add(village.district);
-        }
-        if (village.town) {
-          uniqueTowns.add(village.town);
-        }
-      });
-      
-      setProvinces(Array.from(uniqueProvinces));
-      setDistricts(Array.from(uniqueDistricts));
-      setTowns(Array.from(uniqueTowns));
+      // Set dropdowns based on temple location data
+      if (templeDetails.province) {
+        setSelectedProvince(templeDetails.province);
+      }
+      if (templeDetails.district) {
+        setSelectedDistrict(templeDetails.district);
+      }
+      if (templeDetails.town) {
+        setSelectedTown(templeDetails.town);
+        // If temple has complete location data, load filtered villages
+        await loadFilteredVillages(templeDetails.province, templeDetails.district, templeDetails.town);
+      }
     } catch (error) {
-      console.error('Failed to load data:', error);
+      console.error('Failed to load initial data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadFilteredVillages = async (province?: string, district?: string, town?: string) => {
+    try {
+      setLoading(true);
+      const filteredData = await VillageService.getFilteredVillages(province, district, town);
+      setVillages(filteredData);
+    } catch (error) {
+      console.error('Failed to load filtered villages:', error);
     } finally {
       setLoading(false);
     }
@@ -94,11 +98,7 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
         village.district?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         village.province?.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesProvince = selectedProvince === 'all' || village.province === selectedProvince;
-      const matchesDistrict = selectedDistrict === 'all' || village.district === selectedDistrict;
-      const matchesTown = selectedTown === 'all' || village.town === selectedTown;
-      
-      return matchesSearch && matchesProvince && matchesDistrict && matchesTown;
+      return matchesSearch;
     });
     
     setFilteredVillages(filtered);
@@ -106,13 +106,25 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
 
   const handleProvinceChange = (provinceValue: string) => {
     setSelectedProvince(provinceValue);
-    setSelectedDistrict('all');
-    setSelectedTown('all');
+    setSelectedDistrict('');
+    setSelectedTown('');
+    setVillages([]);
+    setFilteredVillages([]);
   };
 
   const handleDistrictChange = (districtValue: string) => {
     setSelectedDistrict(districtValue);
-    setSelectedTown('all');
+    setSelectedTown('');
+    setVillages([]);
+    setFilteredVillages([]);
+  };
+
+  const handleTownChange = async (townValue: string) => {
+    setSelectedTown(townValue);
+    // Load filtered villages when town is selected
+    if (selectedProvince && selectedDistrict) {
+      await loadFilteredVillages(selectedProvince, selectedDistrict, townValue);
+    }
   };
 
   const handleVillageCreated = (newVillage: VillageDTO) => {
@@ -146,7 +158,7 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
 
       setSelectedVillage('');
       onOpenChange(false);
-      loadData(); // Refresh the data
+      loadInitialData(); // Refresh the data
     } catch (error) {
       console.error('Failed to assign village:', error);
       toast({
@@ -159,60 +171,15 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
     }
   };
 
-  const getFilteredDistricts = () => {
-    if (selectedProvince === 'all') return districts;
-    return districts.filter(district => {
-      // Find villages with this district and check if they belong to selected province
-      return villages.some(village => 
-        village.district === district && village.province === selectedProvince
-      );
-    });
-  };
-
-  const getFilteredTowns = () => {
-    if (selectedDistrict === 'all') return towns;
-    return towns.filter(town => {
-      // Find villages with this town and check if they belong to selected district
-      return villages.some(village => 
-        village.town === town && village.district === selectedDistrict
-      );
-    });
-  };
-
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-6xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assign Village to Temple</DialogTitle>
           </DialogHeader>
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Temple Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Temple Information</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {temple && (
-                  <div className="space-y-2">
-                    <div>
-                      <p className="text-sm text-gray-500">Temple Name</p>
-                      <p className="font-medium">{temple.name}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Address</p>
-                      <p className="text-sm">{temple.address}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Contact</p>
-                      <p className="text-sm">{temple.contactNumber}</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Existing Villages */}
             <Card>
               <CardHeader>
@@ -225,14 +192,14 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                       No villages assigned yet
                     </div>
                   ) : (
-                    existingVillages.map((item, index) => (
+                    existingVillages.map((village, index) => (
                       <div key={index} className="p-2 border rounded bg-gray-50">
                         <div className="flex items-center">
                           <MapPin className="h-4 w-4 mr-2 text-green-600" />
                           <div>
-                            <div className="font-medium">{item.village?.name}</div>
+                            <div className="font-medium">{village.name}</div>
                             <div className="text-sm text-gray-500">
-                              {item.village?.district}, {item.village?.province}
+                              {village.district}, {village.province}
                             </div>
                           </div>
                         </div>
@@ -260,25 +227,14 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                 
                 {/* Filters */}
                 <div className="space-y-3">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                    <Input
-                      placeholder="Search villages..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  
                   <div className="grid grid-cols-1 gap-2">
                     <div>
                       <Label className="text-xs">Province</Label>
                       <Select value={selectedProvince} onValueChange={handleProvinceChange}>
                         <SelectTrigger className="h-8">
-                          <SelectValue placeholder="All provinces" />
+                          <SelectValue placeholder="Select province" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All provinces</SelectItem>
                           {provinces.map((province) => (
                             <SelectItem key={province} value={province}>
                               {province}
@@ -293,14 +249,13 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                       <Select 
                         value={selectedDistrict} 
                         onValueChange={handleDistrictChange}
-                        disabled={selectedProvince === 'all'}
+                        disabled={!selectedProvince}
                       >
                         <SelectTrigger className="h-8">
-                          <SelectValue placeholder="All districts" />
+                          <SelectValue placeholder="Select district" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All districts</SelectItem>
-                          {getFilteredDistricts().map((district) => (
+                          {districts.map((district) => (
                             <SelectItem key={district} value={district}>
                               {district}
                             </SelectItem>
@@ -313,15 +268,14 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                       <Label className="text-xs">Town</Label>
                       <Select 
                         value={selectedTown} 
-                        onValueChange={setSelectedTown}
-                        disabled={selectedDistrict === 'all'}
+                        onValueChange={handleTownChange}
+                        disabled={!selectedDistrict}
                       >
                         <SelectTrigger className="h-8">
-                          <SelectValue placeholder="All towns" />
+                          <SelectValue placeholder="Select town" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="all">All towns</SelectItem>
-                          {getFilteredTowns().map((town) => (
+                          {towns.map((town) => (
                             <SelectItem key={town} value={town}>
                               {town}
                             </SelectItem>
@@ -329,6 +283,16 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Search villages..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
                   </div>
                 </div>
               </CardHeader>
@@ -339,7 +303,7 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {filteredVillages.length === 0 ? (
                       <div className="text-center py-4 text-gray-500">
-                        No villages found
+                        {selectedTown ? "No villages found" : "Select province, district, and town to view villages"}
                       </div>
                     ) : (
                       filteredVillages.map((village) => (

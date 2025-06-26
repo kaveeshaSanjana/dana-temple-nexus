@@ -27,6 +27,39 @@ export class VillageService {
     return response.json();
   }
 
+  static async getFilteredVillages(province?: string, district?: string, town?: string): Promise<VillageDTO[]> {
+    const params = new URLSearchParams();
+    if (province) params.append('province', province);
+    if (district) params.append('district', district);
+    if (town) params.append('town', town);
+
+    const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.VILLAGE_FILTER}?${params.toString()}`, {
+      headers: {
+        ...AuthService.getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch filtered villages');
+    }
+
+    return response.json();
+  }
+
+  static async getVillagesByTemple(templeId: number): Promise<VillageDTO[]> {
+    const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.VILLAGE_BY_TEMPLE}/${templeId}`, {
+      headers: {
+        ...AuthService.getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch temple villages');
+    }
+
+    return response.json();
+  }
+
   static async createVillage(villageData: VillageDTO): Promise<VillageDTO> {
     const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.VILLAGE}`, {
       method: 'POST',

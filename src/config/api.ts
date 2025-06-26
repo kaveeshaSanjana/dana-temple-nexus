@@ -28,6 +28,7 @@ export const API_CONFIG = {
     TEMPLE: '/temple',
     VILLAGE: '/village',
     VILLAGE_BY_TEMPLE: '/village/temple',
+    VILLAGE_FILTER: '/village/filter',
     HEAD_MONK: '/head-monk',
     HEAD_MONK_BY_TEMPLE: '/head-monk/temple',
   }
