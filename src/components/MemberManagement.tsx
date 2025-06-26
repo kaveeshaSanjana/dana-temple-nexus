@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Plus, Search, Users, Phone, Calendar, Mail, MapPin, User, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -35,41 +34,39 @@ interface TempleVillage {
 }
 
 interface FamilyMemberForm {
-  firstName: string;
-  lastName: string;
+  name: string;
   nic?: string;
+  dob?: string;
   phoneNumber: string;
   address: string;
+  email: string;
   tempId: string;
 }
 
 interface DanaAssignment {
-  templeDanaId: number;
-  danaDate: string;
-  description: string;
+  danaId: number;
+  date: string;
   tempId: string;
 }
 
 interface FamilyWithMembersRequest {
   villageId: number;
   family: {
-    familyName: string;
-    address: string;
+    name: string;
     phoneNumber: string;
+    address: string;
   };
   members: {
-    firstName: string;
-    lastName: string;
+    name: string;
     nic?: string;
-    phoneNumber: string;
+    dob?: string;
     address: string;
+    email: string;
+    phoneNumber: string;
   }[];
   danaAssignments?: {
-    templeDana: {
-      id: number;
-    };
-    danaDate: string;
-    description: string;
+    danaId: number;
+    date: string;
   }[];
 }
 
@@ -93,7 +90,7 @@ export const MemberManagement = () => {
 
   // Initialize with one member form
   useEffect(() => {
-    setFamilyMembers([{ tempId: '1', firstName: '', lastName: '', phoneNumber: '', address: '' }]);
+    setFamilyMembers([{ tempId: '1', name: '', phoneNumber: '', address: '', email: '' }]);
     loadVillages();
     loadTempleDanas();
   }, []);
@@ -191,10 +188,10 @@ export const MemberManagement = () => {
     const newId = (familyMembers.length + 1).toString();
     setFamilyMembers([...familyMembers, { 
       tempId: newId, 
-      firstName: '', 
-      lastName: '',
+      name: '', 
       phoneNumber: '', 
-      address: '' 
+      address: '',
+      email: ''
     }]);
   };
 
@@ -212,9 +209,8 @@ export const MemberManagement = () => {
     const newId = (danaAssignments.length + 1).toString();
     setDanaAssignments([...danaAssignments, {
       tempId: newId,
-      templeDanaId: 0,
-      danaDate: '',
-      description: ''
+      danaId: 0,
+      date: ''
     }]);
   };
 
@@ -231,7 +227,7 @@ export const MemberManagement = () => {
   const handleCreateFamilyWithMembers = async (familyData: { villageId: number; familyName: string; address: string; phoneNumber: string }) => {
     try {
       setLoading(true);
-      const validMembers = familyMembers.filter(member => member.firstName && member.lastName && member.phoneNumber);
+      const validMembers = familyMembers.filter(member => member.name && member.phoneNumber && member.email);
       
       if (validMembers.length === 0) {
         toast({
@@ -252,32 +248,30 @@ export const MemberManagement = () => {
       }
 
       const validDanaAssignments = danaAssignments.filter(assignment => 
-        assignment.templeDanaId && assignment.danaDate
+        assignment.danaId && assignment.date
       );
 
       const familyWithMembers: FamilyWithMembersRequest = {
         villageId: familyData.villageId,
         family: {
-          familyName: familyData.familyName,
-          address: familyData.address,
+          name: familyData.familyName,
           phoneNumber: familyData.phoneNumber,
+          address: familyData.address,
         },
         members: validMembers.map(member => ({
-          firstName: member.firstName,
-          lastName: member.lastName,
+          name: member.name,
           phoneNumber: member.phoneNumber,
           address: member.address,
+          email: member.email,
           ...(member.nic && { nic: member.nic }),
+          ...(member.dob && { dob: member.dob }),
         }))
       };
 
       if (validDanaAssignments.length > 0) {
         familyWithMembers.danaAssignments = validDanaAssignments.map(assignment => ({
-          templeDana: {
-            id: assignment.templeDanaId,
-          },
-          danaDate: assignment.danaDate,
-          description: assignment.description,
+          danaId: assignment.danaId,
+          date: assignment.date,
         }));
       }
 
@@ -296,7 +290,7 @@ export const MemberManagement = () => {
       
       // Reset forms
       familyWithMembersForm.reset();
-      setFamilyMembers([{ tempId: '1', firstName: '', lastName: '', phoneNumber: '', address: '' }]);
+      setFamilyMembers([{ tempId: '1', name: '', phoneNumber: '', address: '', email: '' }]);
       setDanaAssignments([]);
       
       toast({
@@ -517,21 +511,22 @@ export const MemberManagement = () => {
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <label className="text-sm font-medium text-gray-700 mb-1 block">First Name *</label>
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Full Name *</label>
                             <Input
-                              value={member.firstName}
-                              onChange={(e) => updateFamilyMemberForm(member.tempId, 'firstName', e.target.value)}
-                              placeholder="First name"
+                              value={member.name}
+                              onChange={(e) => updateFamilyMemberForm(member.tempId, 'name', e.target.value)}
+                              placeholder="Full name"
                               className="h-10"
                             />
                           </div>
                           
                           <div>
-                            <label className="text-sm font-medium text-gray-700 mb-1 block">Last Name *</label>
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Email *</label>
                             <Input
-                              value={member.lastName}
-                              onChange={(e) => updateFamilyMemberForm(member.tempId, 'lastName', e.target.value)}
-                              placeholder="Last name"
+                              value={member.email}
+                              onChange={(e) => updateFamilyMemberForm(member.tempId, 'email', e.target.value)}
+                              placeholder="Email address"
+                              type="email"
                               className="h-10"
                             />
                           </div>
@@ -556,12 +551,22 @@ export const MemberManagement = () => {
                             />
                           </div>
 
-                          <div className="md:col-span-2">
+                          <div>
                             <label className="text-sm font-medium text-gray-700 mb-1 block">NIC Number</label>
                             <Input
                               value={member.nic || ''}
                               onChange={(e) => updateFamilyMemberForm(member.tempId, 'nic', e.target.value)}
                               placeholder="NIC number (optional)"
+                              className="h-10"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-sm font-medium text-gray-700 mb-1 block">Date of Birth</label>
+                            <Input
+                              type="date"
+                              value={member.dob || ''}
+                              onChange={(e) => updateFamilyMemberForm(member.tempId, 'dob', e.target.value)}
                               className="h-10"
                             />
                           </div>
@@ -600,10 +605,10 @@ export const MemberManagement = () => {
                           </Button>
                         </div>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="text-sm font-medium text-gray-700 mb-1 block">Dana Type *</label>
-                            <Select onValueChange={(value) => updateDanaAssignment(assignment.tempId, 'templeDanaId', parseInt(value))}>
+                            <Select onValueChange={(value) => updateDanaAssignment(assignment.tempId, 'danaId', parseInt(value))}>
                               <SelectTrigger className="h-10">
                                 <SelectValue placeholder="Select dana type" />
                               </SelectTrigger>
@@ -621,18 +626,8 @@ export const MemberManagement = () => {
                             <label className="text-sm font-medium text-gray-700 mb-1 block">Date *</label>
                             <Input
                               type="date"
-                              value={assignment.danaDate}
-                              onChange={(e) => updateDanaAssignment(assignment.tempId, 'danaDate', e.target.value)}
-                              className="h-10"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="text-sm font-medium text-gray-700 mb-1 block">Description</label>
-                            <Input
-                              value={assignment.description}
-                              onChange={(e) => updateDanaAssignment(assignment.tempId, 'description', e.target.value)}
-                              placeholder="Dana description"
+                              value={assignment.date}
+                              onChange={(e) => updateDanaAssignment(assignment.tempId, 'date', e.target.value)}
                               className="h-10"
                             />
                           </div>
