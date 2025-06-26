@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Search, Edit, Trash, MapPin } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -6,15 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { AssignVillageDialog } from "@/components/dialogs/AssignVillageDialog";
 import { useToast } from "@/hooks/use-toast";
-
-interface Temple {
-  id: number;
-  name: string;
-  address: string;
-  contactNumber: string;
-  email: string;
-  website: string;
-}
+import { Temple, Province, District, Town } from "@/services/locationService";
 
 export const TempleManagement = () => {
   const [temple, setTemple] = useState<Temple | null>(null);
@@ -195,6 +186,24 @@ export const TempleManagement = () => {
                   <p className="text-xs sm:text-sm text-gray-500">Website</p>
                   <p className="text-xs sm:text-sm font-medium text-blue-600">{temple.website}</p>
                 </div>
+                {temple.province && (
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500">Province</p>
+                    <p className="text-xs sm:text-sm font-medium">{temple.province.name}</p>
+                  </div>
+                )}
+                {temple.district && (
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500">District</p>
+                    <p className="text-xs sm:text-sm font-medium">{temple.district.name}</p>
+                  </div>
+                )}
+                {temple.town && (
+                  <div>
+                    <p className="text-xs sm:text-sm text-gray-500">Town</p>
+                    <p className="text-xs sm:text-sm font-medium">{temple.town.name}</p>
+                  </div>
+                )}
                 <div className="flex flex-col gap-2 pt-2">
                   <button 
                     onClick={handleAssignVillage}
