@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { VillageDTO, VillageService } from "@/services/villageService";
-import { Temple, Province, District, Town, LocationService } from "@/services/locationService";
+import { Temple, LocationService } from "@/services/locationService";
 
 interface CreateVillageDialogProps {
   open: boolean;
@@ -23,80 +23,94 @@ export const CreateVillageDialog = ({ open, onOpenChange, onVillageCreated, temp
   });
   const [loading, setLoading] = useState(false);
   const [temple, setTemple] = useState<Temple | null>(null);
-  const [provinces, setProvinces] = useState<Province[]>([]);
-  const [districts, setDistricts] = useState<District[]>([]);
-  const [towns, setTowns] = useState<Town[]>([]);
+  const [allVillages, setAllVillages] = useState<VillageDTO[]>([]);
+  const [provinces, setProvinces] = useState<string[]>([]);
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [towns, setTowns] = useState<string[]>([]);
 
   useEffect(() => {
     if (open && templeId) {
-      loadTempleData();
+      loadData();
     }
   }, [open, templeId]);
 
-  const loadTempleData = async () => {
+  const loadData = async () => {
     try {
-      const templeData = await LocationService.getTempleById(templeId);
+      const [templeData, villagesData] = await Promise.all([
+        LocationService.getTempleById(templeId),
+        VillageService.getAllVillages()
+      ]);
+      
       setTemple(templeData);
+      setAllVillages(villagesData);
       
-      // Extract unique provinces, districts, and towns from temple data
-      // For now, we'll use the temple's location as available options
-      if (templeData.province) {
-        setProvinces([templeData.province]);
-        if (templeData.district) {
-          setDistricts([templeData.district]);
-          if (templeData.town) {
-            setTowns([templeData.town]);
-          }
+      // Extract unique location data from all villages
+      const uniqueProvinces = new Set<string>();
+      const uniqueDistricts = new Set<string>();
+      const uniqueTowns = new Set<string>();
+      
+      villagesData.forEach(village => {
+        if (village.province) {
+          uniqueProvinces.add(village.province);
         }
-      }
+        if (village.district) {
+          uniqueDistricts.add(village.district);
+        }
+        if (village.town) {
+          uniqueTowns.add(village.town);
+        }
+      });
+      
+      setProvinces(Array.from(uniqueProvinces));
+      setDistricts(Array.from(uniqueDistricts));
+      setTowns(Array.from(uniqueTowns));
     } catch (error) {
-      console.error('Failed to load temple data:', error);
+      console.error('Failed to load data:', error);
     }
   };
 
-  const handleProvinceChange = (provinceId: string) => {
-    const selectedProvince = provinces.find(p => p.id.toString() === provinceId);
-    if (selectedProvince) {
-      setVillageData(prev => ({ 
-        ...prev, 
-        province: selectedProvince,
-        district: undefined,
-        town: undefined
-      }));
-      
-      // Filter districts based on selected province
-      const relatedDistricts = districts.filter(d => d.province.id === selectedProvince.id);
-      setDistricts(relatedDistricts);
-      setTowns([]);
-    }
+  const handleProvinceChange = (provinceValue: string) => {
+    setVillageData(prev => ({ 
+      ...prev, 
+      province: provinceValue,
+      district: '',
+      town: ''
+    }));
+    
+    // Filter districts based on selected province
+    const relatedDistricts = allVillages
+      .filter(v => v.province === provinceValue && v.district)
+      .map(v => v.district!)
+      .filter((value, index, self) => self.indexOf(value) === index);
+    
+    setDistricts(relatedDistricts);
+    setTowns([]);
   };
 
-  const handleDistrictChange = (districtId: string) => {
-    const selectedDistrict = districts.find(d => d.id.toString() === districtId);
-    if (selectedDistrict) {
-      setVillageData(prev => ({ 
-        ...prev, 
-        district: selectedDistrict,
-        town: undefined
-      }));
-      
-      // Filter towns based on selected district
-      const relatedTowns = towns.filter(t => t.district.id === selectedDistrict.id);
-      setTowns(relatedTowns);
-    }
+  const handleDistrictChange = (districtValue: string) => {
+    setVillageData(prev => ({ 
+      ...prev, 
+      district: districtValue,
+      town: ''
+    }));
+    
+    // Filter towns based on selected district and province
+    const relatedTowns = allVillages
+      .filter(v => v.district === districtValue && v.province === villageData.province && v.town)
+      .map(v => v.town!)
+      .filter((value, index, self) => self.indexOf(value) === index);
+    
+    setTowns(relatedTowns);
   };
 
-  const handleTownChange = (townId: string) => {
-    const selectedTown = towns.find(t => t.id.toString() === townId);
-    if (selectedTown) {
-      setVillageData(prev => ({ ...prev, town: selectedTown }));
-    }
+  const handleTownChange = (townValue: string) => {
+    setVillageData(prev => ({ ...prev, town: townValue }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!villageData.province || !villageData.district || !villageData.town) {
-      console.error('Please select province, district, and town');
+    if (!villageData.province || !villageData.district) {
+      console.error('Please select province and district');
       return;
     }
 
@@ -115,6 +129,22 @@ export const CreateVillageDialog = ({ open, onOpenChange, onVillageCreated, temp
     } finally {
       setLoading(false);
     }
+  };
+
+  const getFilteredDistricts = () => {
+    if (!villageData.province) return [];
+    return allVillages
+      .filter(v => v.province === villageData.province && v.district)
+      .map(v => v.district!)
+      .filter((value, index, self) => self.indexOf(value) === index);
+  };
+
+  const getFilteredTowns = () => {
+    if (!villageData.district) return [];
+    return allVillages
+      .filter(v => v.district === villageData.district && v.province === villageData.province && v.town)
+      .map(v => v.town!)
+      .filter((value, index, self) => self.indexOf(value) === index);
   };
 
   return (
@@ -138,14 +168,14 @@ export const CreateVillageDialog = ({ open, onOpenChange, onVillageCreated, temp
           
           <div>
             <Label htmlFor="province">Province *</Label>
-            <Select onValueChange={handleProvinceChange} value={villageData.province?.id.toString() || ''}>
+            <Select onValueChange={handleProvinceChange} value={villageData.province || ''}>
               <SelectTrigger>
                 <SelectValue placeholder="Select province" />
               </SelectTrigger>
               <SelectContent>
                 {provinces.map((province) => (
-                  <SelectItem key={province.id} value={province.id.toString()}>
-                    {province.name}
+                  <SelectItem key={province} value={province}>
+                    {province}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -156,16 +186,16 @@ export const CreateVillageDialog = ({ open, onOpenChange, onVillageCreated, temp
             <Label htmlFor="district">District *</Label>
             <Select 
               onValueChange={handleDistrictChange} 
-              value={villageData.district?.id.toString() || ''}
+              value={villageData.district || ''}
               disabled={!villageData.province}
             >
               <SelectTrigger>
                 <SelectValue placeholder="Select district" />
               </SelectTrigger>
               <SelectContent>
-                {districts.map((district) => (
-                  <SelectItem key={district.id} value={district.id.toString()}>
-                    {district.name}
+                {getFilteredDistricts().map((district) => (
+                  <SelectItem key={district} value={district}>
+                    {district}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -173,19 +203,19 @@ export const CreateVillageDialog = ({ open, onOpenChange, onVillageCreated, temp
           </div>
           
           <div>
-            <Label htmlFor="town">Town *</Label>
+            <Label htmlFor="town">Town</Label>
             <Select 
               onValueChange={handleTownChange} 
-              value={villageData.town?.id.toString() || ''}
+              value={villageData.town || ''}
               disabled={!villageData.district}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select town" />
+                <SelectValue placeholder="Select town (optional)" />
               </SelectTrigger>
               <SelectContent>
-                {towns.map((town) => (
-                  <SelectItem key={town.id} value={town.id.toString()}>
-                    {town.name}
+                {getFilteredTowns().map((town) => (
+                  <SelectItem key={town} value={town}>
+                    {town}
                   </SelectItem>
                 ))}
               </SelectContent>
