@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -25,9 +26,9 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
   const [existingVillages, setExistingVillages] = useState<any[]>([]);
   const [filteredVillages, setFilteredVillages] = useState<VillageDTO[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedProvince, setSelectedProvince] = useState<string>('');
-  const [selectedDistrict, setSelectedDistrict] = useState<string>('');
-  const [selectedTown, setSelectedTown] = useState<string>('');
+  const [selectedProvince, setSelectedProvince] = useState<string>('all');
+  const [selectedDistrict, setSelectedDistrict] = useState<string>('all');
+  const [selectedTown, setSelectedTown] = useState<string>('all');
   const [showCreateVillage, setShowCreateVillage] = useState(false);
   const [loading, setLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
@@ -105,9 +106,9 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
         village.district?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         village.province?.name.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesProvince = !selectedProvince || village.province?.id.toString() === selectedProvince;
-      const matchesDistrict = !selectedDistrict || village.district?.id.toString() === selectedDistrict;
-      const matchesTown = !selectedTown || village.town?.id.toString() === selectedTown;
+      const matchesProvince = selectedProvince === 'all' || village.province?.id.toString() === selectedProvince;
+      const matchesDistrict = selectedDistrict === 'all' || village.district?.id.toString() === selectedDistrict;
+      const matchesTown = selectedTown === 'all' || village.town?.id.toString() === selectedTown;
       
       return matchesSearch && matchesProvince && matchesDistrict && matchesTown;
     });
@@ -117,13 +118,13 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
 
   const handleProvinceChange = (provinceId: string) => {
     setSelectedProvince(provinceId);
-    setSelectedDistrict('');
-    setSelectedTown('');
+    setSelectedDistrict('all');
+    setSelectedTown('all');
   };
 
   const handleDistrictChange = (districtId: string) => {
     setSelectedDistrict(districtId);
-    setSelectedTown('');
+    setSelectedTown('all');
   };
 
   const handleVillageCreated = (newVillage: VillageDTO) => {
@@ -172,13 +173,13 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
 
   const getFilteredDistricts = () => {
     return districts.filter(district => 
-      !selectedProvince || district.province.id.toString() === selectedProvince
+      selectedProvince === 'all' || district.province.id.toString() === selectedProvince
     );
   };
 
   const getFilteredTowns = () => {
     return towns.filter(town => 
-      !selectedDistrict || town.district.id.toString() === selectedDistrict
+      selectedDistrict === 'all' || town.district.id.toString() === selectedDistrict
     );
   };
 
@@ -281,7 +282,7 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                           <SelectValue placeholder="All provinces" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All provinces</SelectItem>
+                          <SelectItem value="all">All provinces</SelectItem>
                           {provinces.map((province) => (
                             <SelectItem key={province.id} value={province.id.toString()}>
                               {province.name}
@@ -296,13 +297,13 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                       <Select 
                         value={selectedDistrict} 
                         onValueChange={handleDistrictChange}
-                        disabled={!selectedProvince}
+                        disabled={selectedProvince === 'all'}
                       >
                         <SelectTrigger className="h-8">
                           <SelectValue placeholder="All districts" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All districts</SelectItem>
+                          <SelectItem value="all">All districts</SelectItem>
                           {getFilteredDistricts().map((district) => (
                             <SelectItem key={district.id} value={district.id.toString()}>
                               {district.name}
@@ -317,13 +318,13 @@ export const AssignVillageDialog = ({ open, onOpenChange, temple }: AssignVillag
                       <Select 
                         value={selectedTown} 
                         onValueChange={setSelectedTown}
-                        disabled={!selectedDistrict}
+                        disabled={selectedDistrict === 'all'}
                       >
                         <SelectTrigger className="h-8">
                           <SelectValue placeholder="All towns" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">All towns</SelectItem>
+                          <SelectItem value="all">All towns</SelectItem>
                           {getFilteredTowns().map((town) => (
                             <SelectItem key={town.id} value={town.id.toString()}>
                               {town.name}
