@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { requestNotificationPermission, onMessageListener, getDeviceInfo } from '@/services/fcmService';
 import { registerFCMToken, updateTokenLastSeen } from '@/api/fcm.api';
-import { toast } from 'sonner';
+import { toast } from '@/components/ui/use-toast';
 
 interface FCMNotification {
   title?: string;
@@ -46,11 +46,18 @@ export const useFCM = (userId?: string) => {
         localStorage.setItem('fcm_token', fcmToken);
         localStorage.setItem('fcm_token_id', result.id?.toString() || '');
         
-        toast.success('🔔 Notifications enabled successfully!');
+        toast({
+          title: '🔔 Notifications enabled',
+          description: 'You will receive push notifications',
+        });
       }
     } catch (error) {
       console.error('Error requesting FCM permission:', error);
-      toast.error('Failed to enable notifications');
+      toast({
+        title: 'Error',
+        description: 'Failed to enable notifications',
+        variant: 'destructive',
+      });
     } finally {
       setLoading(false);
     }
@@ -74,7 +81,8 @@ export const useFCM = (userId?: string) => {
       setNotification(notificationData);
 
       // Show toast notification
-      toast(payload.notification?.title || 'New Notification', {
+      toast({
+        title: payload.notification?.title || 'New Notification',
         description: payload.notification?.body,
         duration: 5000,
       });
