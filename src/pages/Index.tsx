@@ -1,19 +1,16 @@
-
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import Login from "./Login";
+import React from 'react';
+import AppContent from '@/components/AppContent';
 
 const Index = () => {
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const isLoggedIn = localStorage.getItem("isLoggedIn");
-    if (isLoggedIn) {
-      navigate("/dashboard");
-    }
-  }, [navigate]);
-
-  return <Login />;
+  console.log('Index component rendering');
+  
+  // Add error boundary to catch any rendering errors
+  try {
+    return <AppContent />;
+  } catch (error) {
+    console.error('Error in Index component:', error);
+    return <div>Error loading application. Please check console for details.</div>;
+  }
 };
 
 export default Index;
