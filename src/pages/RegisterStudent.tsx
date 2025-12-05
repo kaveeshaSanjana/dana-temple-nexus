@@ -1,5 +1,6 @@
 import ModernNavigation from "@/components/ModernNavigation";
 import { env } from "@/config/env";
+import photoGuideExample from "@/assets/photo-guide-example.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ValidatedInput } from "@/components/ValidatedInput";
@@ -86,6 +87,12 @@ const RegisterStudent = () => {
   const [createdFatherId, setCreatedFatherId] = useState<string>("");
   const [createdMotherId, setCreatedMotherId] = useState<string>("");
   const [createdGuardianId, setCreatedGuardianId] = useState<string>("");
+
+  // Cached uploaded image URLs to avoid re-uploading on retry
+  const [fatherImageUrl, setFatherImageUrl] = useState<string>("");
+  const [motherImageUrl, setMotherImageUrl] = useState<string>("");
+  const [guardianImageUrl, setGuardianImageUrl] = useState<string>("");
+  const [studentImageUrl, setStudentImageUrl] = useState<string>("");
 
   // Student verification states
   const [studentPhoneVerified, setStudentPhoneVerified] = useState(false);
@@ -833,10 +840,11 @@ const RegisterStudent = () => {
     if (fatherEditMode && !fatherExists) {
       setIsSubmittingFather(true);
       try {
-        // Upload image if present
-        let imageUrl = "";
-        if (fatherData.image) {
+        // Use cached URL if available, otherwise upload image
+        let imageUrl = fatherImageUrl;
+        if (!imageUrl && fatherData.image) {
           imageUrl = await uploadFile(fatherData.image, 'profile');
+          setFatherImageUrl(imageUrl); // Cache the URL for retry
         }
 
         // Create father user
@@ -937,10 +945,11 @@ const RegisterStudent = () => {
     if (motherEditMode && !motherExists) {
       setIsSubmittingMother(true);
       try {
-        // Upload image if present
-        let imageUrl = "";
-        if (motherData.image) {
+        // Use cached URL if available, otherwise upload image
+        let imageUrl = motherImageUrl;
+        if (!imageUrl && motherData.image) {
           imageUrl = await uploadFile(motherData.image, 'profile');
+          setMotherImageUrl(imageUrl); // Cache the URL for retry
         }
 
         // Create mother user
@@ -1062,10 +1071,11 @@ const RegisterStudent = () => {
     if (guardianEditMode && !guardianExists) {
       setIsSubmittingGuardian(true);
       try {
-        // Upload image if present
-        let imageUrl = "";
-        if (guardianData.image) {
+        // Use cached URL if available, otherwise upload image
+        let imageUrl = guardianImageUrl;
+        if (!imageUrl && guardianData.image) {
           imageUrl = await uploadFile(guardianData.image, 'profile');
+          setGuardianImageUrl(imageUrl); // Cache the URL for retry
         }
 
         // Create guardian user
@@ -1165,10 +1175,11 @@ const RegisterStudent = () => {
     }
     setIsSubmittingStudent(true);
     try {
-      // Upload image if present
-      let imageUrl = "";
-      if (studentData.image) {
+      // Use cached URL if available, otherwise upload image
+      let imageUrl = studentImageUrl;
+      if (!imageUrl && studentData.image) {
         imageUrl = await uploadFile(studentData.image, 'profile');
+        setStudentImageUrl(imageUrl); // Cache the URL for retry
       }
 
       // Create student user
@@ -1536,8 +1547,43 @@ const RegisterStudent = () => {
                     })} className="bg-background/50 border-border/50" disabled placeholder="Sri Lanka" />
                   </div>
 
-                   <div className="space-y-2">
-                    <Label>Profile Image (Optional)</Label>
+                   <div className="space-y-3">
+                    <Label className="text-sm font-semibold">Profile Image (Optional)</Label>
+                    
+                    {/* Photo Guidelines */}
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                      <div className="flex flex-col sm:flex-row gap-4 items-start">
+                        <div className="shrink-0">
+                          <img 
+                            src={photoGuideExample} 
+                            alt="Photo guide example" 
+                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border-2 border-primary/30 shadow-sm"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <h4 className="font-semibold text-primary text-sm flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Photo Guidelines
+                          </h4>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li className="flex items-start gap-2">
+                              <span className="text-primary">•</span>
+                              <span>Face should be <strong>directed forward</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="text-primary">•</span>
+                              <span>Eyes should be <strong>clearly visible</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="text-primary">•</span>
+                              <span>Similar to passport photo style</span>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Upload Area */}
                     <div className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                       <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setFatherData)} className="hidden" id="father-image" />
                       <label htmlFor="father-image" className="cursor-pointer">
@@ -1759,8 +1805,43 @@ const RegisterStudent = () => {
                     })} className="bg-background/50 border-border/50" disabled placeholder="Sri Lanka" />
                   </div>
 
-                   <div className="space-y-2">
-                    <Label>Profile Image (Optional)</Label>
+                   <div className="space-y-3">
+                    <Label className="text-sm font-semibold">Profile Image (Optional)</Label>
+                    
+                    {/* Photo Guidelines */}
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                      <div className="flex flex-col sm:flex-row gap-4 items-start">
+                        <div className="shrink-0">
+                          <img 
+                            src={photoGuideExample} 
+                            alt="Photo guide example" 
+                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border-2 border-primary/30 shadow-sm"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <h4 className="font-semibold text-primary text-sm flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Photo Guidelines
+                          </h4>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li className="flex items-start gap-2">
+                              <span className="text-primary">•</span>
+                              <span>Face should be <strong>directed forward</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="text-primary">•</span>
+                              <span>Eyes should be <strong>clearly visible</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="text-primary">•</span>
+                              <span>Similar to passport photo style</span>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Upload Area */}
                     <div className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                       <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setMotherData)} className="hidden" id="mother-image" />
                       <label htmlFor="mother-image" className="cursor-pointer">
@@ -1979,8 +2060,43 @@ const RegisterStudent = () => {
                     })} className="bg-background/50 border-border/50" disabled placeholder="Sri Lanka" />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Profile Image</Label>
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold">Profile Image (Optional)</Label>
+                    
+                    {/* Photo Guidelines */}
+                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                      <div className="flex flex-col sm:flex-row gap-4 items-start">
+                        <div className="shrink-0">
+                          <img 
+                            src={photoGuideExample} 
+                            alt="Photo guide example" 
+                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border-2 border-primary/30 shadow-sm"
+                          />
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <h4 className="font-semibold text-primary text-sm flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Photo Guidelines
+                          </h4>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li className="flex items-start gap-2">
+                              <span className="text-primary">•</span>
+                              <span>Face should be <strong>directed forward</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="text-primary">•</span>
+                              <span>Eyes should be <strong>clearly visible</strong></span>
+                            </li>
+                            <li className="flex items-start gap-2">
+                              <span className="text-primary">•</span>
+                              <span>Similar to passport photo style</span>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Upload Area */}
                     <div className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                       <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setGuardianData)} className="hidden" id="guardian-image" />
                       <label htmlFor="guardian-image" className="cursor-pointer">
@@ -2476,7 +2592,7 @@ const RegisterStudent = () => {
                             {/* Example Photo */}
                             <div className="shrink-0">
                               <img 
-                                src="/assets/photo-guide-example.png" 
+                                src={photoGuideExample} 
                                 alt="Photo guide example" 
                                 className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg object-cover border-2 border-primary/30 shadow-sm"
                               />
@@ -2621,6 +2737,7 @@ const RegisterStudent = () => {
                 setEmailOTPSent(false);
                 setShowStudentForm(false);
                 setStudentSubmitted(false);
+                setStudentImageUrl(""); // Clear cached image URL for new sibling
                 
                 // Stay on student tab for sibling registration
                 setActiveTab("student");
