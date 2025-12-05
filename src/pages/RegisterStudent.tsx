@@ -436,7 +436,51 @@ const RegisterStudent = () => {
         ...prev,
         image: file
       }));
+      // Clear image error when new image is uploaded
+      if (currentImageSetter === setFatherData) {
+        setFatherErrors(prev => ({ ...prev, image: "" }));
+      } else if (currentImageSetter === setMotherData) {
+        setMotherErrors(prev => ({ ...prev, image: "" }));
+      } else if (currentImageSetter === setGuardianData) {
+        setGuardianErrors(prev => ({ ...prev, image: "" }));
+      } else if (currentImageSetter === setStudentData) {
+        setStudentErrors(prev => ({ ...prev, image: "" }));
+      }
     }
+  };
+
+  // Helper to clear error when field value changes
+  const clearFieldError = (
+    setErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>,
+    fieldName: string
+  ) => {
+    setErrors(prev => {
+      if (prev[fieldName]) {
+        return { ...prev, [fieldName]: "" };
+      }
+      return prev;
+    });
+  };
+
+  // Wrapper functions for updating form data with real-time error clearing
+  const updateFatherData = (field: string, value: any) => {
+    setFatherData(prev => ({ ...prev, [field]: value }));
+    clearFieldError(setFatherErrors, field);
+  };
+
+  const updateMotherData = (field: string, value: any) => {
+    setMotherData(prev => ({ ...prev, [field]: value }));
+    clearFieldError(setMotherErrors, field);
+  };
+
+  const updateGuardianData = (field: string, value: any) => {
+    setGuardianData(prev => ({ ...prev, [field]: value }));
+    clearFieldError(setGuardianErrors, field);
+  };
+
+  const updateStudentData = (field: string, value: any) => {
+    setStudentData(prev => ({ ...prev, [field]: value }));
+    clearFieldError(setStudentErrors, field);
   };
   
   // Scroll to top helper
@@ -1357,10 +1401,8 @@ const RegisterStudent = () => {
                       <Label htmlFor="father-firstName" className="text-sm font-semibold">First Name *</Label>
                       <ValidatedInput id="father-firstName" value={fatherData.firstName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setFatherData({
-                          ...fatherData,
-                          firstName: value
-                        });
+                        setFatherData({ ...fatherData, firstName: value });
+                        clearFieldError(setFatherErrors, 'firstName');
                       }} maxLength={50} className={`bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 h-11 ${fatherErrors.firstName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., HEWAGE MUDIYANSELAGE" />
                       {fatherErrors.firstName && <p className="text-xs text-destructive">{fatherErrors.firstName}</p>}
                     </div>
@@ -1369,10 +1411,8 @@ const RegisterStudent = () => {
                       <Label htmlFor="father-lastName" className="text-sm font-semibold">Last Name *</Label>
                       <ValidatedInput id="father-lastName" value={fatherData.lastName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setFatherData({
-                          ...fatherData,
-                          lastName: value
-                        });
+                        setFatherData({ ...fatherData, lastName: value });
+                        clearFieldError(setFatherErrors, 'lastName');
                       }} maxLength={50} className={`bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 h-11 ${fatherErrors.lastName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., DON GAMAGE" />
                       {fatherErrors.lastName && <p className="text-xs text-destructive">{fatherErrors.lastName}</p>}
                     </div>
@@ -1385,10 +1425,10 @@ const RegisterStudent = () => {
                         Email Address *
                         {fatherEmailVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 animate-pulse" />}
                       </Label>
-                      <Input id="father-email" type="email" value={fatherData.email} onChange={e => setFatherData({
-                        ...fatherData,
-                        email: e.target.value
-                      })} disabled={fatherEmailVerified} className={fatherEmailVerified ? "bg-muted/50 border-green-200 dark:border-green-800 cursor-not-allowed h-11" : `bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 h-11 ${fatherErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
+                      <Input id="father-email" type="email" value={fatherData.email} onChange={e => {
+                        setFatherData({ ...fatherData, email: e.target.value });
+                        clearFieldError(setFatherErrors, 'email');
+                      }} disabled={fatherEmailVerified} className={fatherEmailVerified ? "bg-muted/50 border-green-200 dark:border-green-800 cursor-not-allowed h-11" : `bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 h-11 ${fatherErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
                       {fatherEmailVerified && <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                           <CheckCircle2 className="w-3 h-3" />
                           Email verified and locked
@@ -1402,10 +1442,10 @@ const RegisterStudent = () => {
                         Phone Number *
                         {fatherPhoneVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 animate-pulse" />}
                       </Label>
-                      <PhoneInput id="father-phone" value={fatherData.phoneNumber} onChange={value => setFatherData({
-                        ...fatherData,
-                        phoneNumber: value
-                      })} disabled={fatherPhoneVerified} className={fatherPhoneVerified ? "bg-muted/50 border-green-200 dark:border-green-800 cursor-not-allowed" : `bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 ${fatherErrors.phoneNumber ? 'phone-input-error' : ''}`} />
+                      <PhoneInput id="father-phone" value={fatherData.phoneNumber} onChange={value => {
+                        setFatherData({ ...fatherData, phoneNumber: value });
+                        clearFieldError(setFatherErrors, 'phoneNumber');
+                      }} disabled={fatherPhoneVerified} className={fatherPhoneVerified ? "bg-muted/50 border-green-200 dark:border-green-800 cursor-not-allowed" : `bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 ${fatherErrors.phoneNumber ? 'phone-input-error' : ''}`} />
                       {fatherPhoneVerified && <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                           <CheckCircle2 className="w-3 h-3" />
                           Phone verified and locked
@@ -1417,10 +1457,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="father-dob" className="text-sm font-semibold">Date of Birth *</Label>
-                      <Input id="father-dob" type="date" value={fatherData.dateOfBirth} onChange={e => setFatherData({
-                        ...fatherData,
-                        dateOfBirth: e.target.value
-                      })} className={`bg-background/50 ${fatherErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
+                      <Input id="father-dob" type="date" value={fatherData.dateOfBirth} onChange={e => {
+                        setFatherData({ ...fatherData, dateOfBirth: e.target.value });
+                        clearFieldError(setFatherErrors, 'dateOfBirth');
+                      }} className={`bg-background/50 ${fatherErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
                       {fatherErrors.dateOfBirth && <p className="text-xs text-destructive">{fatherErrors.dateOfBirth}</p>}
                     </div>
                     
@@ -1452,10 +1492,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="father-bc" className="text-sm font-semibold">Birth Certificate No *</Label>
-                      <Input id="father-bc" value={fatherData.birthCertificateNo} onChange={e => setFatherData({
-                        ...fatherData,
-                        birthCertificateNo: e.target.value
-                      })} className={`bg-background/50 ${fatherErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
+                      <Input id="father-bc" value={fatherData.birthCertificateNo} onChange={e => {
+                        setFatherData({ ...fatherData, birthCertificateNo: e.target.value });
+                        clearFieldError(setFatherErrors, 'birthCertificateNo');
+                      }} className={`bg-background/50 ${fatherErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
                       {fatherErrors.birthCertificateNo && <p className="text-xs text-destructive">{fatherErrors.birthCertificateNo}</p>}
                     </div>
 
@@ -1527,10 +1567,10 @@ const RegisterStudent = () => {
                     district={fatherData.district}
                     city={fatherData.city}
                     postalCode={fatherData.postalCode}
-                    onProvinceChange={(value) => setFatherData({ ...fatherData, province: value })}
-                    onDistrictChange={(value) => setFatherData({ ...fatherData, district: value })}
-                    onCityChange={(value) => setFatherData({ ...fatherData, city: value })}
-                    onPostalCodeChange={(value) => setFatherData({ ...fatherData, postalCode: value })}
+                    onProvinceChange={(value) => { setFatherData({ ...fatherData, province: value }); clearFieldError(setFatherErrors, 'province'); }}
+                    onDistrictChange={(value) => { setFatherData({ ...fatherData, district: value }); clearFieldError(setFatherErrors, 'district'); }}
+                    onCityChange={(value) => { setFatherData({ ...fatherData, city: value }); clearFieldError(setFatherErrors, 'city'); }}
+                    onPostalCodeChange={(value) => { setFatherData({ ...fatherData, postalCode: value }); clearFieldError(setFatherErrors, 'postalCode'); }}
                     errors={{
                       province: fatherErrors.province,
                       district: fatherErrors.district,
@@ -1623,10 +1663,8 @@ const RegisterStudent = () => {
                       <Label htmlFor="mother-firstName" className="text-sm font-semibold">First Name *</Label>
                       <Input id="mother-firstName" value={motherData.firstName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setMotherData({
-                          ...motherData,
-                          firstName: value
-                        });
+                        setMotherData({ ...motherData, firstName: value });
+                        clearFieldError(setMotherErrors, 'firstName');
                       }} maxLength={50} className={`bg-background/50 ${motherErrors.firstName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., HEWAGE MUDIYANSELAGE" />
                       {motherErrors.firstName && <p className="text-xs text-destructive">{motherErrors.firstName}</p>}
                     </div>
@@ -1635,10 +1673,8 @@ const RegisterStudent = () => {
                       <Label htmlFor="mother-lastName" className="text-sm font-semibold">Last Name *</Label>
                       <Input id="mother-lastName" value={motherData.lastName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setMotherData({
-                          ...motherData,
-                          lastName: value
-                        });
+                        setMotherData({ ...motherData, lastName: value });
+                        clearFieldError(setMotherErrors, 'lastName');
                       }} maxLength={50} className={`bg-background/50 ${motherErrors.lastName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., DON GAMAGE" />
                       {motherErrors.lastName && <p className="text-xs text-destructive">{motherErrors.lastName}</p>}
                     </div>
@@ -1650,10 +1686,10 @@ const RegisterStudent = () => {
                         Email Address *
                         {motherEmailVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />}
                       </Label>
-                      <Input id="mother-email" type="email" value={motherData.email} onChange={e => setMotherData({
-                        ...motherData,
-                        email: e.target.value
-                      })} disabled={motherEmailVerified} className={motherEmailVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${motherErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
+                      <Input id="mother-email" type="email" value={motherData.email} onChange={e => {
+                        setMotherData({ ...motherData, email: e.target.value });
+                        clearFieldError(setMotherErrors, 'email');
+                      }} disabled={motherEmailVerified} className={motherEmailVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${motherErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
                       {motherEmailVerified && <p className="text-xs text-muted-foreground">Email verified and locked</p>}
                       {motherErrors.email && !motherEmailVerified && <p className="text-xs text-destructive">{motherErrors.email}</p>}
                     </div>
@@ -1663,10 +1699,10 @@ const RegisterStudent = () => {
                         Phone Number *
                         {motherPhoneVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />}
                       </Label>
-                      <PhoneInput id="mother-phone" value={motherData.phoneNumber} onChange={value => setMotherData({
-                        ...motherData,
-                        phoneNumber: value
-                      })} disabled={motherPhoneVerified} className={motherPhoneVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${motherErrors.phoneNumber ? 'phone-input-error' : 'border-border/50'}`} />
+                      <PhoneInput id="mother-phone" value={motherData.phoneNumber} onChange={value => {
+                        setMotherData({ ...motherData, phoneNumber: value });
+                        clearFieldError(setMotherErrors, 'phoneNumber');
+                      }} disabled={motherPhoneVerified} className={motherPhoneVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${motherErrors.phoneNumber ? 'phone-input-error' : 'border-border/50'}`} />
                       {motherPhoneVerified && <p className="text-xs text-muted-foreground">Phone verified and locked</p>}
                       {motherErrors.phoneNumber && !motherPhoneVerified && <p className="text-xs text-destructive">{motherErrors.phoneNumber}</p>}
                     </div>
@@ -1675,10 +1711,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="mother-dob" className="text-sm font-semibold">Date of Birth *</Label>
-                      <Input id="mother-dob" type="date" value={motherData.dateOfBirth} onChange={e => setMotherData({
-                        ...motherData,
-                        dateOfBirth: e.target.value
-                      })} className={`bg-background/50 ${motherErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
+                      <Input id="mother-dob" type="date" value={motherData.dateOfBirth} onChange={e => {
+                        setMotherData({ ...motherData, dateOfBirth: e.target.value });
+                        clearFieldError(setMotherErrors, 'dateOfBirth');
+                      }} className={`bg-background/50 ${motherErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
                       {motherErrors.dateOfBirth && <p className="text-xs text-destructive">{motherErrors.dateOfBirth}</p>}
                     </div>
                     
@@ -1710,10 +1746,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="mother-bc" className="text-sm font-semibold">Birth Certificate No *</Label>
-                      <Input id="mother-bc" value={motherData.birthCertificateNo} onChange={e => setMotherData({
-                        ...motherData,
-                        birthCertificateNo: e.target.value
-                      })} className={`bg-background/50 ${motherErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
+                      <Input id="mother-bc" value={motherData.birthCertificateNo} onChange={e => {
+                        setMotherData({ ...motherData, birthCertificateNo: e.target.value });
+                        clearFieldError(setMotherErrors, 'birthCertificateNo');
+                      }} className={`bg-background/50 ${motherErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
                       {motherErrors.birthCertificateNo && <p className="text-xs text-destructive">{motherErrors.birthCertificateNo}</p>}
                     </div>
 
@@ -1785,10 +1821,10 @@ const RegisterStudent = () => {
                     district={motherData.district}
                     city={motherData.city}
                     postalCode={motherData.postalCode}
-                    onProvinceChange={(value) => setMotherData({ ...motherData, province: value })}
-                    onDistrictChange={(value) => setMotherData({ ...motherData, district: value })}
-                    onCityChange={(value) => setMotherData({ ...motherData, city: value })}
-                    onPostalCodeChange={(value) => setMotherData({ ...motherData, postalCode: value })}
+                    onProvinceChange={(value) => { setMotherData({ ...motherData, province: value }); clearFieldError(setMotherErrors, 'province'); }}
+                    onDistrictChange={(value) => { setMotherData({ ...motherData, district: value }); clearFieldError(setMotherErrors, 'district'); }}
+                    onCityChange={(value) => { setMotherData({ ...motherData, city: value }); clearFieldError(setMotherErrors, 'city'); }}
+                    onPostalCodeChange={(value) => { setMotherData({ ...motherData, postalCode: value }); clearFieldError(setMotherErrors, 'postalCode'); }}
                     errors={{
                       province: motherErrors.province,
                       district: motherErrors.district,
@@ -1883,10 +1919,8 @@ const RegisterStudent = () => {
                       <Label htmlFor="guardian-firstName" className="text-sm font-semibold">First Name *</Label>
                       <Input id="guardian-firstName" value={guardianData.firstName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setGuardianData({
-                          ...guardianData,
-                          firstName: value
-                        });
+                        setGuardianData({ ...guardianData, firstName: value });
+                        clearFieldError(setGuardianErrors, 'firstName');
                       }} maxLength={50} className={`bg-background/50 ${guardianErrors.firstName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., HEWAGE MUDIYANSELAGE" />
                       {guardianErrors.firstName && <p className="text-xs text-destructive">{guardianErrors.firstName}</p>}
                     </div>
@@ -1895,10 +1929,8 @@ const RegisterStudent = () => {
                       <Label htmlFor="guardian-lastName" className="text-sm font-semibold">Last Name *</Label>
                       <Input id="guardian-lastName" value={guardianData.lastName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setGuardianData({
-                          ...guardianData,
-                          lastName: value
-                        });
+                        setGuardianData({ ...guardianData, lastName: value });
+                        clearFieldError(setGuardianErrors, 'lastName');
                       }} maxLength={50} className={`bg-background/50 ${guardianErrors.lastName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., DON GAMAGE" />
                       {guardianErrors.lastName && <p className="text-xs text-destructive">{guardianErrors.lastName}</p>}
                     </div>
@@ -1910,10 +1942,10 @@ const RegisterStudent = () => {
                         Email Address *
                         {guardianEmailVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />}
                       </Label>
-                      <Input id="guardian-email" type="email" value={guardianData.email} onChange={e => setGuardianData({
-                        ...guardianData,
-                        email: e.target.value
-                      })} disabled={guardianEmailVerified} className={guardianEmailVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${guardianErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
+                      <Input id="guardian-email" type="email" value={guardianData.email} onChange={e => {
+                        setGuardianData({ ...guardianData, email: e.target.value });
+                        clearFieldError(setGuardianErrors, 'email');
+                      }} disabled={guardianEmailVerified} className={guardianEmailVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${guardianErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
                       {guardianEmailVerified && <p className="text-xs text-muted-foreground">Email verified and locked</p>}
                       {guardianErrors.email && !guardianEmailVerified && <p className="text-xs text-destructive">{guardianErrors.email}</p>}
                     </div>
@@ -1923,10 +1955,10 @@ const RegisterStudent = () => {
                         Phone Number *
                         {guardianPhoneVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />}
                       </Label>
-                      <PhoneInput id="guardian-phone" value={guardianData.phoneNumber} onChange={value => setGuardianData({
-                        ...guardianData,
-                        phoneNumber: value
-                      })} disabled={guardianPhoneVerified} className={guardianPhoneVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${guardianErrors.phoneNumber ? 'phone-input-error' : 'border-border/50'}`} />
+                      <PhoneInput id="guardian-phone" value={guardianData.phoneNumber} onChange={value => {
+                        setGuardianData({ ...guardianData, phoneNumber: value });
+                        clearFieldError(setGuardianErrors, 'phoneNumber');
+                      }} disabled={guardianPhoneVerified} className={guardianPhoneVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${guardianErrors.phoneNumber ? 'phone-input-error' : 'border-border/50'}`} />
                       {guardianPhoneVerified && <p className="text-xs text-muted-foreground">Phone verified and locked</p>}
                       {guardianErrors.phoneNumber && !guardianPhoneVerified && <p className="text-xs text-destructive">{guardianErrors.phoneNumber}</p>}
                     </div>
@@ -1935,19 +1967,19 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="guardian-dob" className="text-sm font-semibold">Date of Birth *</Label>
-                      <Input id="guardian-dob" type="date" value={guardianData.dateOfBirth} onChange={e => setGuardianData({
-                        ...guardianData,
-                        dateOfBirth: e.target.value
-                      })} className={`bg-background/50 ${guardianErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
+                      <Input id="guardian-dob" type="date" value={guardianData.dateOfBirth} onChange={e => {
+                        setGuardianData({ ...guardianData, dateOfBirth: e.target.value });
+                        clearFieldError(setGuardianErrors, 'dateOfBirth');
+                      }} className={`bg-background/50 ${guardianErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
                       {guardianErrors.dateOfBirth && <p className="text-xs text-destructive">{guardianErrors.dateOfBirth}</p>}
                     </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="guardian-gender" className="text-sm font-semibold">Gender *</Label>
-                      <Select onValueChange={value => setGuardianData({
-                        ...guardianData,
-                        gender: value
-                      })}>
+                      <Select onValueChange={value => {
+                        setGuardianData({ ...guardianData, gender: value });
+                        clearFieldError(setGuardianErrors, 'gender');
+                      }}>
                         <SelectTrigger className={`bg-background/50 ${guardianErrors.gender ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`}>
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
@@ -1965,10 +1997,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="guardian-bc" className="text-sm font-semibold">Birth Certificate No *</Label>
-                      <Input id="guardian-bc" value={guardianData.birthCertificateNo} onChange={e => setGuardianData({
-                        ...guardianData,
-                        birthCertificateNo: e.target.value
-                      })} className={`bg-background/50 ${guardianErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
+                      <Input id="guardian-bc" value={guardianData.birthCertificateNo} onChange={e => {
+                        setGuardianData({ ...guardianData, birthCertificateNo: e.target.value });
+                        clearFieldError(setGuardianErrors, 'birthCertificateNo');
+                      }} className={`bg-background/50 ${guardianErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
                       {guardianErrors.birthCertificateNo && <p className="text-xs text-destructive">{guardianErrors.birthCertificateNo}</p>}
                     </div>
 
@@ -2040,10 +2072,10 @@ const RegisterStudent = () => {
                     district={guardianData.district}
                     city={guardianData.city}
                     postalCode={guardianData.postalCode}
-                    onProvinceChange={(value) => setGuardianData({ ...guardianData, province: value })}
-                    onDistrictChange={(value) => setGuardianData({ ...guardianData, district: value })}
-                    onCityChange={(value) => setGuardianData({ ...guardianData, city: value })}
-                    onPostalCodeChange={(value) => setGuardianData({ ...guardianData, postalCode: value })}
+                    onProvinceChange={(value) => { setGuardianData({ ...guardianData, province: value }); clearFieldError(setGuardianErrors, 'province'); }}
+                    onDistrictChange={(value) => { setGuardianData({ ...guardianData, district: value }); clearFieldError(setGuardianErrors, 'district'); }}
+                    onCityChange={(value) => { setGuardianData({ ...guardianData, city: value }); clearFieldError(setGuardianErrors, 'city'); }}
+                    onPostalCodeChange={(value) => { setGuardianData({ ...guardianData, postalCode: value }); clearFieldError(setGuardianErrors, 'postalCode'); }}
                     errors={{
                       province: guardianErrors.province,
                       district: guardianErrors.district,
@@ -2336,10 +2368,8 @@ const RegisterStudent = () => {
                           <Label htmlFor="student-firstName" className="text-sm font-semibold">First Name *</Label>
                           <Input id="student-firstName" value={studentData.firstName} onChange={e => {
                             const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                            setStudentData({
-                              ...studentData,
-                              firstName: value
-                            });
+                            setStudentData({ ...studentData, firstName: value });
+                            clearFieldError(setStudentErrors, 'firstName');
                           }} maxLength={50} className={`bg-background/50 ${studentErrors.firstName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., HEWAGE MUDIYANSELAGE" />
                           {studentErrors.firstName && <p className="text-xs text-destructive">{studentErrors.firstName}</p>}
                         </div>
@@ -2348,10 +2378,8 @@ const RegisterStudent = () => {
                           <Label htmlFor="student-lastName" className="text-sm font-semibold">Last Name *</Label>
                           <Input id="student-lastName" value={studentData.lastName} onChange={e => {
                             const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                            setStudentData({
-                              ...studentData,
-                              lastName: value
-                            });
+                            setStudentData({ ...studentData, lastName: value });
+                            clearFieldError(setStudentErrors, 'lastName');
                           }} maxLength={50} className={`bg-background/50 ${studentErrors.lastName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., DON GAMAGE" />
                           {studentErrors.lastName && <p className="text-xs text-destructive">{studentErrors.lastName}</p>}
                         </div>
@@ -2360,19 +2388,19 @@ const RegisterStudent = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="student-dob" className="text-sm font-semibold">Date of Birth *</Label>
-                          <Input id="student-dob" type="date" value={studentData.dateOfBirth} onChange={e => setStudentData({
-                        ...studentData,
-                        dateOfBirth: e.target.value
-                      })} className={`bg-background/50 ${studentErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
+                          <Input id="student-dob" type="date" value={studentData.dateOfBirth} onChange={e => {
+                        setStudentData({ ...studentData, dateOfBirth: e.target.value });
+                        clearFieldError(setStudentErrors, 'dateOfBirth');
+                      }} className={`bg-background/50 ${studentErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
                           {studentErrors.dateOfBirth && <p className="text-xs text-destructive">{studentErrors.dateOfBirth}</p>}
                         </div>
                         
                         <div className="space-y-2">
                           <Label htmlFor="student-gender" className="text-sm font-semibold">Gender *</Label>
-                          <Select onValueChange={value => setStudentData({
-                        ...studentData,
-                        gender: value
-                      })}>
+                          <Select onValueChange={value => {
+                        setStudentData({ ...studentData, gender: value });
+                        clearFieldError(setStudentErrors, 'gender');
+                      }}>
                             <SelectTrigger className={`bg-background/50 ${studentErrors.gender ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`}>
                               <SelectValue placeholder="Select gender" />
                             </SelectTrigger>
@@ -2389,10 +2417,10 @@ const RegisterStudent = () => {
 
                       <div className="space-y-2">
                         <Label htmlFor="student-bc" className="text-sm font-semibold">Birth Certificate No *</Label>
-                        <Input id="student-bc" value={studentData.birthCertificateNo} onChange={e => setStudentData({
-                      ...studentData,
-                      birthCertificateNo: e.target.value
-                    })} className={`bg-background/50 ${studentErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
+                        <Input id="student-bc" value={studentData.birthCertificateNo} onChange={e => {
+                      setStudentData({ ...studentData, birthCertificateNo: e.target.value });
+                      clearFieldError(setStudentErrors, 'birthCertificateNo');
+                    }} className={`bg-background/50 ${studentErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
                         {studentErrors.birthCertificateNo && <p className="text-xs text-destructive">{studentErrors.birthCertificateNo}</p>}
                       </div>
 
@@ -2417,10 +2445,10 @@ const RegisterStudent = () => {
                         district={studentData.district}
                         city={studentData.city}
                         postalCode={studentData.postalCode}
-                        onProvinceChange={(value) => setStudentData({ ...studentData, province: value })}
-                        onDistrictChange={(value) => setStudentData({ ...studentData, district: value })}
-                        onCityChange={(value) => setStudentData({ ...studentData, city: value })}
-                        onPostalCodeChange={(value) => setStudentData({ ...studentData, postalCode: value })}
+                        onProvinceChange={(value) => { setStudentData({ ...studentData, province: value }); clearFieldError(setStudentErrors, 'province'); }}
+                        onDistrictChange={(value) => { setStudentData({ ...studentData, district: value }); clearFieldError(setStudentErrors, 'district'); }}
+                        onCityChange={(value) => { setStudentData({ ...studentData, city: value }); clearFieldError(setStudentErrors, 'city'); }}
+                        onPostalCodeChange={(value) => { setStudentData({ ...studentData, postalCode: value }); clearFieldError(setStudentErrors, 'postalCode'); }}
                         errors={{
                           province: studentErrors.province,
                           district: studentErrors.district,
