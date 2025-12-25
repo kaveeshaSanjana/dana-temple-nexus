@@ -234,29 +234,29 @@ export interface RegisteredParent {
   timestamp: number;
 }
 
-// Helper to get registered parent by type from local storage
+// Helper to get registered parent by type from session storage (more secure than localStorage)
 export const getRegisteredParent = (type: "Father" | "Mother" | "Guardian"): RegisteredParent | null => {
   try {
     const key = getStorageKey(type);
-    const stored = localStorage.getItem(key);
+    const stored = sessionStorage.getItem(key);
     if (stored) {
       const parent = JSON.parse(stored) as RegisteredParent;
-      // Keep entries for 30 days
+      // Session storage clears on tab close, but still check timestamp for extra safety
       const now = Date.now();
-      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
-      if (now - parent.timestamp < thirtyDaysMs) {
+      const oneDayMs = 24 * 60 * 60 * 1000; // Reduced to 1 day for security
+      if (now - parent.timestamp < oneDayMs) {
         return parent;
       }
       // Expired, remove it
-      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
     }
   } catch (e) {
-    console.error("Error reading local storage:", e);
+    console.error("Error reading session storage:", e);
   }
   return null;
 };
 
-// Helper to save a registered parent to local storage (stores separately by type)
+// Helper to save a registered parent to session storage (stores separately by type)
 export const saveRegisteredParent = (parent: Omit<RegisteredParent, 'timestamp'>) => {
   try {
     const key = getStorageKey(parent.type);
@@ -265,29 +265,29 @@ export const saveRegisteredParent = (parent: Omit<RegisteredParent, 'timestamp'>
       imageUrl: transformImageUrl(parent.imageUrl),
       timestamp: Date.now()
     };
-    localStorage.setItem(key, JSON.stringify(parentToSave));
+    sessionStorage.setItem(key, JSON.stringify(parentToSave));
   } catch (e) {
-    console.error("Error saving to local storage:", e);
+    console.error("Error saving to session storage:", e);
   }
 };
 
-// Helper to clear a specific parent type from local storage
+// Helper to clear a specific parent type from session storage
 export const clearRegisteredParent = (type: "Father" | "Mother" | "Guardian") => {
   try {
     const key = getStorageKey(type);
-    localStorage.removeItem(key);
+    sessionStorage.removeItem(key);
   } catch (e) {
-    console.error("Error clearing local storage:", e);
+    console.error("Error clearing session storage:", e);
   }
 };
 
-// Helper to clear all registered parents from local storage
+// Helper to clear all registered parents from session storage
 export const clearAllRegisteredParents = () => {
   try {
-    localStorage.removeItem(STORAGE_KEY_FATHER);
-    localStorage.removeItem(STORAGE_KEY_MOTHER);
+    sessionStorage.removeItem(STORAGE_KEY_FATHER);
+    sessionStorage.removeItem(STORAGE_KEY_MOTHER);
   } catch (e) {
-    // Error clearing local storage
+    // Error clearing session storage
   }
 };
 
