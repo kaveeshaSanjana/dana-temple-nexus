@@ -6,9 +6,10 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { requestPhoneOTP, verifyPhoneOTP, requestEmailOTP, verifyEmailOTP } from "@/lib/api";
 import { toast } from "sonner";
-import { UserPlus, UserCheck, SkipForward, ArrowRight, CheckCircle2, Mail, Phone, ArrowLeft, Loader2, HeartCrack, Scale, Users, Home, Shield, ChevronDown, ChevronUp, Languages } from "lucide-react";
+import { UserPlus, UserCheck, SkipForward, ArrowRight, CheckCircle2, Mail, Phone, ArrowLeft, Loader2, HeartCrack, Scale, Users, Home, Shield, ChevronDown, ChevronUp, Languages, MessageSquare } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 // Language type
@@ -73,6 +74,8 @@ const translations = {
     fatherDivorcedDesc: "Father has no custody or involvement",
     fatherUnknownLabel: "Father information unknown",
     fatherUnknownDesc: "I don't have father's information",
+    fatherOtherLabel: "Other reason",
+    fatherOtherDesc: "Specify a different reason",
     // Skip reasons - Mother
     motherDeceasedLabel: "Mother is no longer with us",
     motherDeceasedDesc: "My mother has passed away",
@@ -82,6 +85,8 @@ const translations = {
     motherDivorcedDesc: "Mother has no custody or involvement",
     motherUnknownLabel: "Mother information unknown",
     motherUnknownDesc: "I don't have mother's information",
+    motherOtherLabel: "Other reason",
+    motherOtherDesc: "Specify a different reason",
     // Skip reasons - Guardian
     guardianParentsAddedLabel: "Already added parents",
     guardianParentsAddedDesc: "Father and/or mother are the primary caregivers",
@@ -89,6 +94,12 @@ const translations = {
     guardianLivingWithParentsDesc: "No separate guardian needed",
     guardianParentIsGuardianLabel: "Parent is my guardian",
     guardianParentIsGuardianDesc: "Father or mother is also my legal guardian",
+    guardianOtherLabel: "Other reason",
+    guardianOtherDesc: "Specify a different reason",
+    // Other reason input
+    enterOtherReason: "Please enter your reason",
+    otherReasonPlaceholder: "Type your reason here...",
+    submitReason: "Submit",
     // Parent types
     father: "father",
     mother: "mother",
@@ -162,6 +173,8 @@ const translations = {
     fatherDivorcedDesc: "පියාට භාරකාරත්වය හෝ සම්බන්ධතාවයක් නැත",
     fatherUnknownLabel: "පියාගේ තොරතුරු නොදනී",
     fatherUnknownDesc: "මට පියාගේ තොරතුරු නැත",
+    fatherOtherLabel: "වෙනත් හේතුවක්",
+    fatherOtherDesc: "වෙනත් හේතුවක් සඳහන් කරන්න",
     // Skip reasons - Mother
     motherDeceasedLabel: "මව අප අතර නැත",
     motherDeceasedDesc: "මගේ මව අභාවප්‍රාප්ත වී ඇත",
@@ -171,6 +184,8 @@ const translations = {
     motherDivorcedDesc: "මවට භාරකාරත්වය හෝ සම්බන්ධතාවයක් නැත",
     motherUnknownLabel: "මවගේ තොරතුරු නොදනී",
     motherUnknownDesc: "මට මවගේ තොරතුරු නැත",
+    motherOtherLabel: "වෙනත් හේතුවක්",
+    motherOtherDesc: "වෙනත් හේතුවක් සඳහන් කරන්න",
     // Skip reasons - Guardian
     guardianParentsAddedLabel: "දැනටමත් දෙමව්පියන් එකතු කර ඇත",
     guardianParentsAddedDesc: "පියා සහ/හෝ මව ප්‍රධාන භාරකරුවන් වේ",
@@ -178,6 +193,12 @@ const translations = {
     guardianLivingWithParentsDesc: "වෙනම භාරකරුවෙකු අවශ්‍ය නැත",
     guardianParentIsGuardianLabel: "දෙමාපියෙකු මගේ භාරකරු වේ",
     guardianParentIsGuardianDesc: "පියා හෝ මව මගේ නීතිමය භාරකරු ද වේ",
+    guardianOtherLabel: "වෙනත් හේතුවක්",
+    guardianOtherDesc: "වෙනත් හේතුවක් සඳහන් කරන්න",
+    // Other reason input
+    enterOtherReason: "කරුණාකර ඔබගේ හේතුව ඇතුළත් කරන්න",
+    otherReasonPlaceholder: "ඔබගේ හේතුව මෙහි ටයිප් කරන්න...",
+    submitReason: "ඉදිරිපත් කරන්න",
     // Parent types
     father: "පියා",
     mother: "මව",
@@ -328,6 +349,7 @@ const getSkipReasons = (parentType: "Father" | "Mother" | "Guardian", lang: Lang
       { id: "absent", icon: Home, label: t.fatherAbsentLabel, description: t.fatherAbsentDesc },
       { id: "divorced", icon: Scale, label: t.fatherDivorcedLabel, description: t.fatherDivorcedDesc },
       { id: "unknown", icon: Users, label: t.fatherUnknownLabel, description: t.fatherUnknownDesc },
+      { id: "other", icon: MessageSquare, label: t.fatherOtherLabel, description: t.fatherOtherDesc, isOther: true },
     ];
   }
   
@@ -337,6 +359,7 @@ const getSkipReasons = (parentType: "Father" | "Mother" | "Guardian", lang: Lang
       { id: "absent", icon: Home, label: t.motherAbsentLabel, description: t.motherAbsentDesc },
       { id: "divorced", icon: Scale, label: t.motherDivorcedLabel, description: t.motherDivorcedDesc },
       { id: "unknown", icon: Users, label: t.motherUnknownLabel, description: t.motherUnknownDesc },
+      { id: "other", icon: MessageSquare, label: t.motherOtherLabel, description: t.motherOtherDesc, isOther: true },
     ];
   }
   
@@ -345,6 +368,7 @@ const getSkipReasons = (parentType: "Father" | "Mother" | "Guardian", lang: Lang
     { id: "parents_added", icon: Users, label: t.guardianParentsAddedLabel, description: t.guardianParentsAddedDesc },
     { id: "living_with_parents", icon: Home, label: t.guardianLivingWithParentsLabel, description: t.guardianLivingWithParentsDesc },
     { id: "parent_is_guardian", icon: Shield, label: t.guardianParentIsGuardianLabel, description: t.guardianParentIsGuardianDesc },
+    { id: "other", icon: MessageSquare, label: t.guardianOtherLabel, description: t.guardianOtherDesc, isOther: true },
   ];
 };
 
@@ -365,6 +389,8 @@ export const ParentExistsForm = ({
   const [phoneNumber, setPhoneNumber] = useState("");
   const [email, setEmail] = useState("");
   const [selectedSkipReason, setSelectedSkipReason] = useState("");
+  const [customOtherReason, setCustomOtherReason] = useState("");
+  const [showOtherInput, setShowOtherInput] = useState(false);
   const [showSkipReasons, setShowSkipReasons] = useState(false);
   const [language, setLanguage] = useState<Language>("en");
   
@@ -827,7 +853,14 @@ export const ParentExistsForm = ({
                   <div className="space-y-2">
                     <Card 
                       className="cursor-pointer border-2 border-dashed hover:border-muted-foreground hover:bg-accent transition-all"
-                      onClick={() => setShowSkipReasons(!showSkipReasons)}
+                      onClick={() => {
+                        const newValue = !showSkipReasons;
+                        setShowSkipReasons(newValue);
+                        if (!newValue) {
+                          setShowOtherInput(false);
+                          setCustomOtherReason("");
+                        }
+                      }}
                     >
                       <CardContent className="flex items-center gap-4 p-4 sm:p-6">
                         <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center shrink-0">
@@ -864,33 +897,80 @@ export const ParentExistsForm = ({
                             </p>
                             {skipReasons.map((reason) => {
                               const Icon = reason.icon;
+                              const isOtherReason = (reason as any).isOther;
                               return (
-                                <Card
-                                  key={reason.id}
-                                  className="cursor-pointer border transition-all hover:border-primary hover:bg-accent"
-                                  onClick={() => {
-                                    setSelectedSkipReason(reason.id);
-                                    // Auto-skip immediately after selection with reason
-                                    setTimeout(() => {
-                                      if (onSkip) onSkip(reason.id);
-                                    }, 150);
-                                  }}
-                                >
-                                  <CardContent className="flex items-center gap-3 p-3">
-                                    <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-muted">
-                                      <Icon className="w-4 h-4 text-muted-foreground" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium">
-                                        {reason.label}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {reason.description}
-                                      </p>
-                                    </div>
-                                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                                  </CardContent>
-                                </Card>
+                                <div key={reason.id}>
+                                  <Card
+                                    className={`cursor-pointer border transition-all hover:border-primary hover:bg-accent ${showOtherInput && isOtherReason ? 'border-primary bg-accent' : ''}`}
+                                    onClick={() => {
+                                      if (isOtherReason) {
+                                        setShowOtherInput(true);
+                                        setSelectedSkipReason(reason.id);
+                                      } else {
+                                        setSelectedSkipReason(reason.id);
+                                        setShowOtherInput(false);
+                                        // Auto-skip immediately after selection with reason
+                                        setTimeout(() => {
+                                          if (onSkip) onSkip(reason.id);
+                                        }, 150);
+                                      }
+                                    }}
+                                  >
+                                    <CardContent className="flex items-center gap-3 p-3">
+                                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-muted">
+                                        <Icon className="w-4 h-4 text-muted-foreground" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium">
+                                          {reason.label}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {reason.description}
+                                        </p>
+                                      </div>
+                                      <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                                    </CardContent>
+                                  </Card>
+                                  
+                                  {/* Other reason text input */}
+                                  {isOtherReason && showOtherInput && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: "auto" }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      className="mt-2 space-y-2"
+                                    >
+                                      <Label className="text-sm text-muted-foreground">
+                                        {t.enterOtherReason}
+                                      </Label>
+                                      <Textarea
+                                        value={customOtherReason}
+                                        onChange={(e) => setCustomOtherReason(e.target.value)}
+                                        placeholder={t.otherReasonPlaceholder}
+                                        className="min-h-[80px] resize-none"
+                                        maxLength={200}
+                                      />
+                                      <div className="flex justify-between items-center">
+                                        <span className="text-xs text-muted-foreground">
+                                          {customOtherReason.length}/200
+                                        </span>
+                                        <Button
+                                          size="sm"
+                                          disabled={!customOtherReason.trim()}
+                                          onClick={() => {
+                                            if (onSkip && customOtherReason.trim()) {
+                                              onSkip(`other: ${customOtherReason.trim()}`);
+                                              setCustomOtherReason("");
+                                              setShowOtherInput(false);
+                                            }
+                                          }}
+                                        >
+                                          {t.submitReason}
+                                        </Button>
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </div>
                               );
                             })}
                           </div>
