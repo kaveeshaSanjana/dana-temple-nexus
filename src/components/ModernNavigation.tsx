@@ -18,7 +18,7 @@ const ModernNavigation = () => {
       <nav className="fixed top-2 left-1/2 transform -translate-x-1/2 z-50 w-[98%] max-w-7xl" role="navigation" aria-label="Main navigation">
         <div className="relative">
           {/* Glass Background with Curved Design */}
-          <div className="absolute inset-0 bg-white/15 backdrop-blur-2xl rounded-3xl border border-white/30 shadow-2xl ring-1 ring-white/10 transition-all duration-300 hover:shadow-3xl"></div>
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-2xl rounded-3xl border border-border/30 shadow-2xl ring-1 ring-border/10 transition-all duration-300 hover:shadow-3xl"></div>
           
           {/* Curved Accent Lines */}
           <div className="absolute top-0 left-8 right-8 h-[2px] bg-gradient-to-r from-transparent via-primary/50 to-transparent rounded-full"></div>

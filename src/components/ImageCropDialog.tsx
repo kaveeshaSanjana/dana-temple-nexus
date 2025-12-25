@@ -102,7 +102,7 @@ export const ImageCropDialog = ({ open, onOpenChange, imageSrc, onCropComplete }
       onCropComplete(croppedImage);
       onOpenChange(false);
     } catch (e) {
-      console.error(e);
+      // Error during image crop
     } finally {
       setIsProcessing(false);
     }

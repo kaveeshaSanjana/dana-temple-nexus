@@ -13,7 +13,6 @@ const getApiBaseUrl = (): string => {
   // Allow override via localStorage for testing/debugging
   const localStorageUrl = localStorage.getItem('apiBaseUrl');
   if (localStorageUrl && env.enableDebug) {
-    console.warn('🔧 Using API URL from localStorage:', localStorageUrl);
     return localStorageUrl;
   }
   return env.apiBaseUrl;
@@ -76,16 +75,6 @@ export const generateSignedUrl = async (file: File, context: string = 'profile')
   const folder = getFolderType(context as any);
   const token = getJwtToken();
   
-  // Debug logging for signed URL request
-  console.log('🔐 Signed URL Request:', {
-    folder,
-    fileName: file.name,
-    contentType: file.type,
-    fileSize: file.size,
-    tokenPresent: !!token,
-    tokenLength: token?.length || 0
-  });
-  
   const params = new URLSearchParams({
     fileName: file.name,
     contentType: file.type,
@@ -102,11 +91,6 @@ export const generateSignedUrl = async (file: File, context: string = 'profile')
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    console.error('❌ Signed URL Error:', {
-      status: response.status,
-      statusText: response.statusText,
-      error: errorData
-    });
     throw new Error(errorData.message || `Failed to generate signed URL (${response.status})`);
   }
 
@@ -143,12 +127,6 @@ export const uploadFileToSignedUrl = async (file: File, signedUrlData: SignedUrl
 // Verify and publish uploaded file
 export const verifyAndPublish = async (relativePath: string): Promise<{ success: boolean; publicUrl: string }> => {
   const token = getJwtToken();
-  
-  console.log('🔓 Verify & Publish Request:', {
-    relativePath,
-    tokenPresent: !!token,
-    tokenLength: token?.length || 0
-  });
 
   const response = await fetch(`${getApiBaseUrl()}/upload/verify-and-publish`, {
     method: 'POST',
@@ -161,11 +139,6 @@ export const verifyAndPublish = async (relativePath: string): Promise<{ success:
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    console.error('❌ Verify & Publish Error:', {
-      status: response.status,
-      statusText: response.statusText,
-      error: errorData
-    });
     throw new Error(errorData.message || 'Failed to verify upload');
   }
 

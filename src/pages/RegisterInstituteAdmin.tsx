@@ -113,7 +113,6 @@ const RegisterInstituteAdmin = () => {
       setShowImageDialog(false);
       window.location.href = '/';
     } catch (error) {
-      console.error('Image upload error:', error);
       toast({
         title: "Error",
         description: "Failed to upload profile image. Please try again.",

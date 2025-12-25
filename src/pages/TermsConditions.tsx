@@ -123,10 +123,10 @@ const TermsConditions = () => {
                             <strong className="text-black">PV 00342747</strong>
                           </div>
                           <div className="flex items-start gap-3">
-                            <span className="text-sm text-gray-600 min-w-[140px]">Registered Address:</span>
-                            <span className="text-gray-700">188/79 The Finans Waththa, Wilimbula, Henegama</span>
-                          </div>
-                          <div className="flex items-start gap-3">
+                             <span className="text-sm text-gray-600 min-w-[140px]">Registered Address:</span>
+                             <span className="text-gray-700">Gampaha, Sri Lanka</span>
+                           </div>
+                           <div className="flex items-start gap-3">
                             <span className="text-sm text-gray-600 min-w-[140px]">Contact:</span>
                             <strong className="text-black">+94 70 330 0524</strong>
                           </div>

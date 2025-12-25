@@ -1,6 +1,5 @@
 import ModernNavigation from "@/components/ModernNavigation";
 import { env } from "@/config/env";
-import photoGuideExample from "@/assets/photo-guide-example.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ValidatedInput } from "@/components/ValidatedInput";
@@ -10,13 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { BookOpen, Mail, Phone, MapPin, FileText, Upload, Heart, AlertCircle, User, Users, Baby, Edit2, CheckCircle2, Loader2, Globe } from "lucide-react";
+import { BookOpen, Mail, Phone, MapPin, FileText, Upload, Heart, AlertCircle, User, Users, Baby, Edit2, CheckCircle2, Loader2, Globe, Trash2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { ImageCropDialog } from "@/components/ImageCropDialog";
 import { PhoneInput } from "@/components/ui/phone-input";
-import { ParentExistsForm, saveRegisteredParent, getRegisteredParent } from "@/components/ParentExistsForm";
+import { ParentExistsForm, saveRegisteredParent, getRegisteredParent, type ParentSelectionData } from "@/components/ParentExistsForm";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -68,6 +67,11 @@ const RegisterStudent = () => {
   const [skipFather, setSkipFather] = useState(false);
   const [skipMother, setSkipMother] = useState(false);
   const [skipGuardian, setSkipGuardian] = useState(false);
+  
+  // Skip reason states
+  const [fatherSkipReason, setFatherSkipReason] = useState("");
+  const [motherSkipReason, setMotherSkipReason] = useState("");
+  const [guardianSkipReason, setGuardianSkipReason] = useState("");
 
   // Image crop states
   const [cropDialogOpen, setCropDialogOpen] = useState(false);
@@ -87,12 +91,6 @@ const RegisterStudent = () => {
   const [createdFatherId, setCreatedFatherId] = useState<string>("");
   const [createdMotherId, setCreatedMotherId] = useState<string>("");
   const [createdGuardianId, setCreatedGuardianId] = useState<string>("");
-
-  // Cached uploaded image URLs to avoid re-uploading on retry
-  const [fatherImageUrl, setFatherImageUrl] = useState<string>("");
-  const [motherImageUrl, setMotherImageUrl] = useState<string>("");
-  const [guardianImageUrl, setGuardianImageUrl] = useState<string>("");
-  const [studentImageUrl, setStudentImageUrl] = useState<string>("");
 
   // Student verification states
   const [studentPhoneVerified, setStudentPhoneVerified] = useState(false);
@@ -116,6 +114,154 @@ const RegisterStudent = () => {
   const [motherEmailVerified, setMotherEmailVerified] = useState(false);
   const [guardianPhoneVerified, setGuardianPhoneVerified] = useState(false);
   const [guardianEmailVerified, setGuardianEmailVerified] = useState(false);
+
+  // State for clear data confirmation dialog
+  const [showClearDataDialog, setShowClearDataDialog] = useState(false);
+
+  // Check if any cached data exists
+  const hasCachedData = () => {
+    try {
+      const savedState = localStorage.getItem(STORAGE_KEY_REGISTRATION_STATE);
+      const savedFormData = localStorage.getItem(STORAGE_KEY_FORM_DATA);
+      return !!(savedState || savedFormData);
+    } catch {
+      return false;
+    }
+  };
+
+  // Clear all registration data from localStorage
+  const handleClearAllData = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEY_REGISTRATION_STATE);
+      localStorage.removeItem(STORAGE_KEY_FORM_DATA);
+      
+      // Reset all form states to initial values
+      setActiveTab("father");
+      setShowFatherForm(true);
+      setShowMotherForm(false);
+      setShowGuardianForm(false);
+      setFatherEditMode(false);
+      setMotherEditMode(false);
+      setGuardianEditMode(false);
+      setFatherExists(false);
+      setMotherExists(false);
+      setGuardianExists(false);
+      setFatherCompleted(false);
+      setMotherCompleted(false);
+      setGuardianCompleted(false);
+      setSkipFather(false);
+      setSkipMother(false);
+      setSkipGuardian(false);
+      setFatherSkipReason("");
+      setMotherSkipReason("");
+      setGuardianSkipReason("");
+      setStudentSubmitted(false);
+      setCreatedFatherId("");
+      setCreatedMotherId("");
+      setCreatedGuardianId("");
+      setFatherPhoneVerified(false);
+      setFatherEmailVerified(false);
+      setMotherPhoneVerified(false);
+      setMotherEmailVerified(false);
+      setGuardianPhoneVerified(false);
+      setGuardianEmailVerified(false);
+      setStudentPhoneVerified(false);
+      setStudentEmailVerified(false);
+      setShowStudentForm(false);
+      
+      // Reset form data
+      setFatherData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phoneNumber: "",
+        userType: "USER_WITHOUT_STUDENT",
+        gender: "MALE",
+        dateOfBirth: "",
+        birthCertificateNo: "",
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        district: "",
+        province: "",
+        postalCode: "",
+        country: "Sri Lanka",
+        language: "E" as LanguageCode,
+        image: null,
+        additionalInfo: {
+          occupation: "",
+          workplace: "",
+          workPhone: "",
+          educationLevel: ""
+        }
+      });
+      
+      setMotherData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phoneNumber: "",
+        userType: "USER_WITHOUT_STUDENT",
+        gender: "FEMALE",
+        dateOfBirth: "",
+        birthCertificateNo: "",
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        district: "",
+        province: "",
+        postalCode: "",
+        country: "Sri Lanka",
+        language: "E" as LanguageCode,
+        image: null,
+        additionalInfo: {
+          occupation: "",
+          workplace: "",
+          workPhone: "",
+          educationLevel: ""
+        }
+      });
+      
+      setGuardianData({
+        firstName: "",
+        lastName: "",
+        email: "",
+        phoneNumber: "",
+        userType: "USER_WITHOUT_STUDENT",
+        gender: "MALE",
+        dateOfBirth: "",
+        birthCertificateNo: "",
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        district: "",
+        province: "",
+        postalCode: "",
+        country: "Sri Lanka",
+        language: "E" as LanguageCode,
+        image: null,
+        additionalInfo: {
+          occupation: "",
+          workplace: "",
+          workPhone: "",
+          educationLevel: ""
+        }
+      });
+      
+      setShowClearDataDialog(false);
+      
+      toast({
+        title: "Data Cleared",
+        description: "All saved registration data has been cleared successfully."
+      });
+    } catch (e) {
+      toast({
+        title: "Error",
+        description: "Failed to clear saved data. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Calculate progress percentage - 25% per section
   const calculateProgress = () => {
@@ -258,6 +404,9 @@ const RegisterStudent = () => {
         setSkipFather(state.skipFather || false);
         setSkipMother(state.skipMother || false);
         setSkipGuardian(state.skipGuardian || false);
+        setFatherSkipReason(state.fatherSkipReason || "");
+        setMotherSkipReason(state.motherSkipReason || "");
+        setGuardianSkipReason(state.guardianSkipReason || "");
         setCreatedFatherId(state.createdFatherId || "");
         setCreatedMotherId(state.createdMotherId || "");
         setCreatedGuardianId(state.createdGuardianId || "");
@@ -273,23 +422,25 @@ const RegisterStudent = () => {
         setMotherEmailVerified(state.motherEmailVerified || false);
         setGuardianPhoneVerified(state.guardianPhoneVerified || false);
         setGuardianEmailVerified(state.guardianEmailVerified || false);
-      }
 
-      // Load form data
-      const savedFormData = localStorage.getItem(STORAGE_KEY_FORM_DATA);
-      if (savedFormData) {
-        const formData = JSON.parse(savedFormData);
-        if (formData.fatherData) {
-          setFatherData(prev => ({ ...prev, ...formData.fatherData, image: null }));
+        // Restore selected parent IDs (existing or created)
+        if (state.fatherId) {
+          setStudentData((prev) => ({
+            ...prev,
+            studentData: { ...prev.studentData, fatherId: state.fatherId }
+          }));
         }
-        if (formData.motherData) {
-          setMotherData(prev => ({ ...prev, ...formData.motherData, image: null }));
+        if (state.motherId) {
+          setStudentData((prev) => ({
+            ...prev,
+            studentData: { ...prev.studentData, motherId: state.motherId }
+          }));
         }
-        if (formData.guardianData) {
-          setGuardianData(prev => ({ ...prev, ...formData.guardianData, image: null }));
-        }
-        if (formData.studentData) {
-          setStudentData(prev => ({ ...prev, ...formData.studentData, image: null }));
+        if (state.guardianId) {
+          setStudentData((prev) => ({
+            ...prev,
+            studentData: { ...prev.studentData, guardianId: state.guardianId }
+          }));
         }
       }
 
@@ -320,7 +471,7 @@ const RegisterStudent = () => {
         }));
       }
     } catch (e) {
-      console.error("Error loading saved registration data:", e);
+      // Error loading saved registration data
     }
     setIsInitialized(true);
   }, []);
@@ -340,6 +491,12 @@ const RegisterStudent = () => {
         skipFather,
         skipMother,
         skipGuardian,
+        fatherSkipReason,
+        motherSkipReason,
+        guardianSkipReason,
+        fatherId: studentData.studentData.fatherId,
+        motherId: studentData.studentData.motherId,
+        guardianId: studentData.studentData.guardianId,
         createdFatherId,
         createdMotherId,
         createdGuardianId,
@@ -358,36 +515,16 @@ const RegisterStudent = () => {
       };
       localStorage.setItem(STORAGE_KEY_REGISTRATION_STATE, JSON.stringify(state));
     } catch (e) {
-      console.error("Error saving registration state:", e);
+      // Error saving registration state
     }
-  }, [isInitialized, activeTab, fatherCompleted, motherCompleted, guardianCompleted, fatherExists, motherExists, guardianExists, skipFather, skipMother, skipGuardian, createdFatherId, createdMotherId, createdGuardianId, showFatherForm, showMotherForm, showGuardianForm, fatherEditMode, motherEditMode, guardianEditMode, fatherPhoneVerified, fatherEmailVerified, motherPhoneVerified, motherEmailVerified, guardianPhoneVerified, guardianEmailVerified]);
-
-  // Save form data to localStorage when it changes (debounced)
-  useEffect(() => {
-    if (!isInitialized) return;
-    const timeoutId = setTimeout(() => {
-      try {
-        const formData = {
-          fatherData: { ...fatherData, image: null },
-          motherData: { ...motherData, image: null },
-          guardianData: { ...guardianData, image: null },
-          studentData: { ...studentData, image: null }
-        };
-        localStorage.setItem(STORAGE_KEY_FORM_DATA, JSON.stringify(formData));
-      } catch (e) {
-        console.error("Error saving form data:", e);
-      }
-    }, 500);
-    return () => clearTimeout(timeoutId);
-  }, [isInitialized, fatherData, motherData, guardianData, studentData]);
+  }, [isInitialized, activeTab, fatherCompleted, motherCompleted, guardianCompleted, fatherExists, motherExists, guardianExists, skipFather, skipMother, skipGuardian, fatherSkipReason, motherSkipReason, guardianSkipReason, createdFatherId, createdMotherId, createdGuardianId, showFatherForm, showMotherForm, showGuardianForm, fatherEditMode, motherEditMode, guardianEditMode, fatherPhoneVerified, fatherEmailVerified, motherPhoneVerified, motherEmailVerified, guardianPhoneVerified, guardianEmailVerified]);
 
   // Clear saved data after successful registration completion
   const clearSavedRegistrationData = () => {
     try {
       localStorage.removeItem(STORAGE_KEY_REGISTRATION_STATE);
-      localStorage.removeItem(STORAGE_KEY_FORM_DATA);
     } catch (e) {
-      console.error("Error clearing saved data:", e);
+      // Error clearing saved data
     }
   };
 
@@ -436,51 +573,7 @@ const RegisterStudent = () => {
         ...prev,
         image: file
       }));
-      // Clear image error when new image is uploaded
-      if (currentImageSetter === setFatherData) {
-        setFatherErrors(prev => ({ ...prev, image: "" }));
-      } else if (currentImageSetter === setMotherData) {
-        setMotherErrors(prev => ({ ...prev, image: "" }));
-      } else if (currentImageSetter === setGuardianData) {
-        setGuardianErrors(prev => ({ ...prev, image: "" }));
-      } else if (currentImageSetter === setStudentData) {
-        setStudentErrors(prev => ({ ...prev, image: "" }));
-      }
     }
-  };
-
-  // Helper to clear error when field value changes
-  const clearFieldError = (
-    setErrors: React.Dispatch<React.SetStateAction<Record<string, string>>>,
-    fieldName: string
-  ) => {
-    setErrors(prev => {
-      if (prev[fieldName]) {
-        return { ...prev, [fieldName]: "" };
-      }
-      return prev;
-    });
-  };
-
-  // Wrapper functions for updating form data with real-time error clearing
-  const updateFatherData = (field: string, value: any) => {
-    setFatherData(prev => ({ ...prev, [field]: value }));
-    clearFieldError(setFatherErrors, field);
-  };
-
-  const updateMotherData = (field: string, value: any) => {
-    setMotherData(prev => ({ ...prev, [field]: value }));
-    clearFieldError(setMotherErrors, field);
-  };
-
-  const updateGuardianData = (field: string, value: any) => {
-    setGuardianData(prev => ({ ...prev, [field]: value }));
-    clearFieldError(setGuardianErrors, field);
-  };
-
-  const updateStudentData = (field: string, value: any) => {
-    setStudentData(prev => ({ ...prev, [field]: value }));
-    clearFieldError(setStudentErrors, field);
   };
   
   // Scroll to top helper
@@ -593,28 +686,31 @@ const RegisterStudent = () => {
     scrollToTop();
   };
 
-  const handleSkipFather = () => {
+  const handleSkipFather = (reason?: string) => {
     setSkipFather(true);
+    setFatherSkipReason(reason || "");
     setShowFatherForm(false);
     // If skip father, mother cannot be skipped
     setActiveTab("mother");
     setShowMotherForm(true);
     scrollToTop();
   };
-  const handleSkipMother = () => {
+  const handleSkipMother = (reason?: string) => {
     // Allow skipping mother - mother can always be skipped
     setSkipMother(true);
+    setMotherSkipReason(reason || "");
     setMotherCompleted(true);
     setShowMotherForm(false);
     setActiveTab("guardian");
     setShowGuardianForm(true);
     scrollToTop();
   };
-  const handleSkipGuardian = () => {
+  const handleSkipGuardian = (reason?: string) => {
     // Guardian can be skipped if at least one parent (father or mother) is provided
     const hasAnyParent = fatherCompleted || fatherExists || motherCompleted || motherExists;
     if (hasAnyParent) {
       setSkipGuardian(true);
+      setGuardianSkipReason(reason || "");
       setGuardianCompleted(true);
       setActiveTab("student");
       scrollToTop();
@@ -625,6 +721,113 @@ const RegisterStudent = () => {
         variant: "destructive"
       });
     }
+  };
+  
+  // Reset selection handlers
+  const handleResetFatherSelection = () => {
+    setFatherExists(false);
+    setFatherCompleted(false);
+    setSkipFather(false);
+    setFatherSkipReason("");
+    setCreatedFatherId("");
+    setFatherEditMode(false);
+    setShowFatherForm(true);
+    setFatherPhoneVerified(false);
+    setFatherEmailVerified(false);
+    setStudentData(prev => ({
+      ...prev,
+      studentData: { ...prev.studentData, fatherId: "" }
+    }));
+  };
+  
+  const handleResetMotherSelection = () => {
+    setMotherExists(false);
+    setMotherCompleted(false);
+    setSkipMother(false);
+    setMotherSkipReason("");
+    setCreatedMotherId("");
+    setMotherEditMode(false);
+    setShowMotherForm(true);
+    setMotherPhoneVerified(false);
+    setMotherEmailVerified(false);
+    setStudentData(prev => ({
+      ...prev,
+      studentData: { ...prev.studentData, motherId: "" }
+    }));
+  };
+  
+  const handleResetGuardianSelection = () => {
+    setGuardianExists(false);
+    setGuardianCompleted(false);
+    setSkipGuardian(false);
+    setGuardianSkipReason("");
+    setCreatedGuardianId("");
+    setGuardianEditMode(false);
+    setShowGuardianForm(true);
+    setGuardianPhoneVerified(false);
+    setGuardianEmailVerified(false);
+    setStudentData(prev => ({
+      ...prev,
+      studentData: { ...prev.studentData, guardianId: "" }
+    }));
+  };
+  
+  // Helper to get selection data for each parent type
+  const getFatherSelectionData = () => {
+    if (skipFather) {
+      return { type: "skipped" as const, skipReason: fatherSkipReason };
+    }
+    if (fatherExists && studentData.studentData.fatherId) {
+      return { type: "existing" as const, id: studentData.studentData.fatherId };
+    }
+    if (createdFatherId) {
+      const savedFather = getRegisteredParent("Father");
+      return { 
+        type: "created" as const, 
+        id: createdFatherId, 
+        name: savedFather?.name,
+        imageUrl: savedFather?.imageUrl 
+      };
+    }
+    return undefined;
+  };
+  
+  const getMotherSelectionData = () => {
+    if (skipMother) {
+      return { type: "skipped" as const, skipReason: motherSkipReason };
+    }
+    if (motherExists && studentData.studentData.motherId) {
+      return { type: "existing" as const, id: studentData.studentData.motherId };
+    }
+    if (createdMotherId) {
+      const savedMother = getRegisteredParent("Mother");
+      return { 
+        type: "created" as const, 
+        id: createdMotherId, 
+        name: savedMother?.name,
+        imageUrl: savedMother?.imageUrl 
+      };
+    }
+    return undefined;
+  };
+  
+  const getGuardianSelectionData = () => {
+    if (skipGuardian) {
+      return { type: "skipped" as const, skipReason: guardianSkipReason };
+    }
+    if (guardianExists && studentData.studentData.guardianId) {
+      return { type: "existing" as const, id: studentData.studentData.guardianId };
+    }
+    if (createdGuardianId) {
+      const savedGuardian = getRegisteredParent("Guardian");
+      return { 
+        type: "created" as const, 
+        id: createdGuardianId, 
+        name: savedGuardian?.name,
+        imageUrl: savedGuardian?.imageUrl 
+      };
+    }
+    return undefined;
   };
 
   // Student phone verification handlers
@@ -841,11 +1044,6 @@ const RegisterStudent = () => {
     const provinceResult = validateRequired(data.province, 'Province');
     if (!provinceResult.isValid) errors.province = provinceResult.error!;
 
-    // Profile image is required
-    if (!data.image) {
-      errors.image = 'Profile image is required';
-    }
-
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 
@@ -884,11 +1082,10 @@ const RegisterStudent = () => {
     if (fatherEditMode && !fatherExists) {
       setIsSubmittingFather(true);
       try {
-        // Use cached URL if available, otherwise upload image
-        let imageUrl = fatherImageUrl;
-        if (!imageUrl && fatherData.image) {
+        // Upload image if present
+        let imageUrl = "";
+        if (fatherData.image) {
           imageUrl = await uploadFile(fatherData.image, 'profile');
-          setFatherImageUrl(imageUrl); // Cache the URL for retry
         }
 
         // Create father user
@@ -989,11 +1186,10 @@ const RegisterStudent = () => {
     if (motherEditMode && !motherExists) {
       setIsSubmittingMother(true);
       try {
-        // Use cached URL if available, otherwise upload image
-        let imageUrl = motherImageUrl;
-        if (!imageUrl && motherData.image) {
+        // Upload image if present
+        let imageUrl = "";
+        if (motherData.image) {
           imageUrl = await uploadFile(motherData.image, 'profile');
-          setMotherImageUrl(imageUrl); // Cache the URL for retry
         }
 
         // Create mother user
@@ -1115,11 +1311,10 @@ const RegisterStudent = () => {
     if (guardianEditMode && !guardianExists) {
       setIsSubmittingGuardian(true);
       try {
-        // Use cached URL if available, otherwise upload image
-        let imageUrl = guardianImageUrl;
-        if (!imageUrl && guardianData.image) {
+        // Upload image if present
+        let imageUrl = "";
+        if (guardianData.image) {
           imageUrl = await uploadFile(guardianData.image, 'profile');
-          setGuardianImageUrl(imageUrl); // Cache the URL for retry
         }
 
         // Create guardian user
@@ -1219,11 +1414,10 @@ const RegisterStudent = () => {
     }
     setIsSubmittingStudent(true);
     try {
-      // Use cached URL if available, otherwise upload image
-      let imageUrl = studentImageUrl;
-      if (!imageUrl && studentData.image) {
+      // Upload image if present
+      let imageUrl = "";
+      if (studentData.image) {
         imageUrl = await uploadFile(studentData.image, 'profile');
-        setStudentImageUrl(imageUrl); // Cache the URL for retry
       }
 
       // Create student user
@@ -1325,14 +1519,27 @@ const RegisterStudent = () => {
           <CardContent className="space-y-8 animate-fade-in" style={{
           animationDelay: '0.2s'
         }}>
-            {/* Progress Bar */}
+            {/* Progress Bar with Clear Data Button */}
             <div className="space-y-3 p-4 bg-gradient-to-r from-primary/5 to-accent/5 rounded-xl border border-primary/10 hover:border-primary/20 transition-all duration-300">
               <div className="flex justify-between items-center text-sm font-medium">
                 <span className="text-muted-foreground flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
                   Registration Progress
                 </span>
-                <span className="text-primary font-bold text-lg">{calculateProgress()}%</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-primary font-bold text-lg">{calculateProgress()}%</span>
+                  {hasCachedData() && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowClearDataDialog(true)}
+                      className="text-destructive border-destructive/30 hover:bg-destructive/10 hover:border-destructive/50 flex items-center gap-1.5"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Clear All
+                    </Button>
+                  )}
+                </div>
               </div>
               <Progress value={calculateProgress()} className="h-3 [&>div]:bg-gradient-primary [&>div]:transition-all [&>div]:duration-500 shadow-inner" />
               <div className="flex justify-between text-xs text-muted-foreground">
@@ -1341,41 +1548,145 @@ const RegisterStudent = () => {
                 <span>Complete</span>
               </div>
             </div>
+
+            {/* Clear Data Confirmation Dialog */}
+            <AlertDialog open={showClearDataDialog} onOpenChange={setShowClearDataDialog}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+                    <Trash2 className="w-5 h-5" />
+                    Clear All Registration Data?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently delete all saved form data including Father, Mother, Guardian, and Student information. This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <Button variant="outline" onClick={() => setShowClearDataDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button variant="destructive" onClick={handleClearAllData} className="flex items-center gap-2">
+                    <Trash2 className="w-4 h-4" />
+                    Clear All Data
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             
+            {/* User ID Bar - Shows created IDs for reference */}
+            {(createdFatherId || createdMotherId || createdGuardianId) && (
+              <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 rounded-xl border border-green-200 dark:border-green-800/30 animate-fade-in">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  <span className="font-semibold text-green-800 dark:text-green-300">Registered User IDs</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  {createdFatherId && (
+                    <div className="flex items-center gap-2 p-2 bg-background/80 rounded-lg border border-border/50">
+                      <User className="w-4 h-4 text-blue-600" />
+                      <span className="text-muted-foreground">Father:</span>
+                      <span className="font-mono text-xs text-foreground truncate">{createdFatherId}</span>
+                    </div>
+                  )}
+                  {createdMotherId && (
+                    <div className="flex items-center gap-2 p-2 bg-background/80 rounded-lg border border-border/50">
+                      <User className="w-4 h-4 text-pink-600" />
+                      <span className="text-muted-foreground">Mother:</span>
+                      <span className="font-mono text-xs text-foreground truncate">{createdMotherId}</span>
+                    </div>
+                  )}
+                  {createdGuardianId && (
+                    <div className="flex items-center gap-2 p-2 bg-background/80 rounded-lg border border-border/50">
+                      <Users className="w-4 h-4 text-purple-600" />
+                      <span className="text-muted-foreground">Guardian:</span>
+                      <span className="font-mono text-xs text-foreground truncate">{createdGuardianId}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <Tabs value={activeTab} onValueChange={newTab => {
-            // Prevent navigation to locked tabs
-            if (newTab === "mother" && !fatherCompleted && !fatherExists) return;
-            if (newTab === "guardian" && !motherCompleted && !motherExists) return;
+            // Check if user has reached Student tab (can now navigate freely to completed sections)
+            const hasReachedStudent = activeTab === "student" || studentSubmitted;
+            
+            // If user is at Student tab, they can go back to any completed section to view/change selection
+            if (hasReachedStudent && (newTab === "father" || newTab === "mother" || newTab === "guardian")) {
+              if (newTab === "father" && (fatherCompleted || fatherExists || skipFather)) {
+                setShowFatherForm(true);
+                setFatherEditMode(false);
+                setActiveTab(newTab);
+                return;
+              }
+              if (newTab === "mother" && (motherCompleted || motherExists || skipMother)) {
+                setShowMotherForm(true);
+                setMotherEditMode(false);
+                setActiveTab(newTab);
+                return;
+              }
+              if (newTab === "guardian" && (guardianCompleted || guardianExists || skipGuardian)) {
+                setShowGuardianForm(true);
+                setGuardianEditMode(false);
+                setActiveTab(newTab);
+                return;
+              }
+              return;
+            }
+            
+            // Prevent navigation to locked tabs (forward direction only if not completed)
+            if (newTab === "mother" && !fatherCompleted && !fatherExists && !skipFather) return;
+            if (newTab === "guardian" && !motherCompleted && !motherExists && !skipMother) return;
             if (newTab === "student" && !guardianCompleted && !guardianExists && !skipGuardian) return;
 
-            // Show form when navigating to parent/guardian tabs
-            if (newTab === "father" && !fatherExists) {
+            // Show ParentExistsForm when navigating to parent/guardian tabs (so selection summary is visible)
+            if (newTab === "father") {
               setShowFatherForm(true);
-            } else if (newTab === "mother" && !motherExists) {
+              setActiveTab(newTab);
+            } else if (newTab === "mother") {
               setShowMotherForm(true);
-            } else if (newTab === "guardian" && !guardianExists) {
+              setActiveTab(newTab);
+            } else if (newTab === "guardian") {
               setShowGuardianForm(true);
+              setActiveTab(newTab);
             } else {
               setActiveTab(newTab);
             }
           }} className="w-full">
               <TabsList className="grid w-full grid-cols-4 bg-gradient-to-r from-muted/50 via-muted/30 to-muted/50 p-1.5 rounded-xl shadow-inner border border-border/30">
-                <TabsTrigger value="father" className="flex items-center gap-2 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground rounded-lg transition-all duration-300 data-[state=active]:shadow-lg hover:scale-105">
+                <TabsTrigger 
+                  value="father" 
+                  className="flex items-center gap-2 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground rounded-lg transition-all duration-300 data-[state=active]:shadow-lg hover:scale-105"
+                >
                   <User className="w-4 h-4" />
                   <span className="hidden data-[state=active]:inline sm:inline font-semibold">Father</span>
                   {(fatherCompleted || fatherExists) && <CheckCircle2 className="w-4 h-4 text-green-500 data-[state=active]:text-primary-foreground" />}
+                  {skipFather && !fatherCompleted && !fatherExists && <span className="text-xs text-yellow-600">(Skipped)</span>}
                 </TabsTrigger>
-                <TabsTrigger value="mother" className="flex items-center gap-2 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground rounded-lg transition-all duration-300 data-[state=active]:shadow-lg hover:scale-105">
+                <TabsTrigger 
+                  value="mother" 
+                  className="flex items-center gap-2 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground rounded-lg transition-all duration-300 data-[state=active]:shadow-lg hover:scale-105"
+                  disabled={!fatherCompleted && !fatherExists && !skipFather}
+                >
                   <User className="w-4 h-4" />
                   <span className="hidden data-[state=active]:inline sm:inline font-semibold">Mother</span>
                   {(motherCompleted || motherExists) && <CheckCircle2 className="w-4 h-4 text-green-500 data-[state=active]:text-primary-foreground" />}
+                  {skipMother && !motherCompleted && !motherExists && <span className="text-xs text-yellow-600">(Skipped)</span>}
                 </TabsTrigger>
-                <TabsTrigger value="guardian" className="flex items-center gap-2 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground rounded-lg transition-all duration-300 data-[state=active]:shadow-lg hover:scale-105" disabled={!(fatherCompleted || fatherExists || motherCompleted || motherExists || skipMother)}>
+                <TabsTrigger 
+                  value="guardian" 
+                  className="flex items-center gap-2 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground rounded-lg transition-all duration-300 data-[state=active]:shadow-lg hover:scale-105" 
+                  disabled={!motherCompleted && !motherExists && !skipMother}
+                >
                   <Users className="w-4 h-4" />
                   <span className="hidden data-[state=active]:inline sm:inline font-semibold">Guardian</span>
-                  {(guardianCompleted || guardianExists || skipGuardian) && <CheckCircle2 className="w-4 h-4 text-green-500 data-[state=active]:text-primary-foreground" />}
+                  {(guardianCompleted || guardianExists) && <CheckCircle2 className="w-4 h-4 text-green-500 data-[state=active]:text-primary-foreground" />}
+                  {skipGuardian && !guardianCompleted && !guardianExists && <span className="text-xs text-yellow-600">(Skipped)</span>}
                 </TabsTrigger>
-                <TabsTrigger value="student" className="flex items-center gap-2 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground rounded-lg transition-all duration-300 data-[state=active]:shadow-lg hover:scale-105" disabled={!(fatherCompleted || fatherExists || motherCompleted || motherExists) || !guardianCompleted && !guardianExists && !skipGuardian}>
+                <TabsTrigger 
+                  value="student" 
+                  className="flex items-center gap-2 data-[state=active]:bg-gradient-primary data-[state=active]:text-primary-foreground rounded-lg transition-all duration-300 data-[state=active]:shadow-lg hover:scale-105" 
+                  disabled={!guardianCompleted && !guardianExists && !skipGuardian}
+                >
                   <Baby className="w-4 h-4" />
                   <span className="hidden data-[state=active]:inline sm:inline font-semibold">Student</span>
                   {studentSubmitted && <CheckCircle2 className="w-4 h-4 text-green-500 data-[state=active]:text-primary-foreground" />}
@@ -1384,7 +1695,7 @@ const RegisterStudent = () => {
 
               {/* Father Details Tab */}
               <TabsContent value="father" className="space-y-6 mt-6">
-                {showFatherForm && !fatherEditMode ? <ParentExistsForm parentType="Father" onExistingParent={handleExistingFather} onNewParent={handleNewFather} onSkip={handleSkipFather} /> : <>
+                {showFatherForm && !fatherEditMode ? <ParentExistsForm parentType="Father" onExistingParent={handleExistingFather} onNewParent={handleNewFather} onSkip={handleSkipFather} selectionData={getFatherSelectionData()} onResetSelection={handleResetFatherSelection} /> : <>
                     <div className="space-y-6 animate-fade-in">
                       <div className="flex items-center gap-3 pb-4 border-b border-border/50">
                         <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg animate-pulse">
@@ -1401,8 +1712,10 @@ const RegisterStudent = () => {
                       <Label htmlFor="father-firstName" className="text-sm font-semibold">First Name *</Label>
                       <ValidatedInput id="father-firstName" value={fatherData.firstName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setFatherData({ ...fatherData, firstName: value });
-                        clearFieldError(setFatherErrors, 'firstName');
+                        setFatherData({
+                          ...fatherData,
+                          firstName: value
+                        });
                       }} maxLength={50} className={`bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 h-11 ${fatherErrors.firstName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., HEWAGE MUDIYANSELAGE" />
                       {fatherErrors.firstName && <p className="text-xs text-destructive">{fatherErrors.firstName}</p>}
                     </div>
@@ -1411,8 +1724,10 @@ const RegisterStudent = () => {
                       <Label htmlFor="father-lastName" className="text-sm font-semibold">Last Name *</Label>
                       <ValidatedInput id="father-lastName" value={fatherData.lastName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setFatherData({ ...fatherData, lastName: value });
-                        clearFieldError(setFatherErrors, 'lastName');
+                        setFatherData({
+                          ...fatherData,
+                          lastName: value
+                        });
                       }} maxLength={50} className={`bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 h-11 ${fatherErrors.lastName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., DON GAMAGE" />
                       {fatherErrors.lastName && <p className="text-xs text-destructive">{fatherErrors.lastName}</p>}
                     </div>
@@ -1425,10 +1740,10 @@ const RegisterStudent = () => {
                         Email Address *
                         {fatherEmailVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 animate-pulse" />}
                       </Label>
-                      <Input id="father-email" type="email" value={fatherData.email} onChange={e => {
-                        setFatherData({ ...fatherData, email: e.target.value });
-                        clearFieldError(setFatherErrors, 'email');
-                      }} disabled={fatherEmailVerified} className={fatherEmailVerified ? "bg-muted/50 border-green-200 dark:border-green-800 cursor-not-allowed h-11" : `bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 h-11 ${fatherErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
+                      <Input id="father-email" type="email" value={fatherData.email} onChange={e => setFatherData({
+                        ...fatherData,
+                        email: e.target.value
+                      })} disabled={fatherEmailVerified} className={fatherEmailVerified ? "bg-muted/50 border-green-200 dark:border-green-800 cursor-not-allowed h-11" : `bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 h-11 ${fatherErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
                       {fatherEmailVerified && <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                           <CheckCircle2 className="w-3 h-3" />
                           Email verified and locked
@@ -1442,10 +1757,10 @@ const RegisterStudent = () => {
                         Phone Number *
                         {fatherPhoneVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400 animate-pulse" />}
                       </Label>
-                      <PhoneInput id="father-phone" value={fatherData.phoneNumber} onChange={value => {
-                        setFatherData({ ...fatherData, phoneNumber: value });
-                        clearFieldError(setFatherErrors, 'phoneNumber');
-                      }} disabled={fatherPhoneVerified} className={fatherPhoneVerified ? "bg-muted/50 border-green-200 dark:border-green-800 cursor-not-allowed" : `bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 ${fatherErrors.phoneNumber ? 'phone-input-error' : ''}`} />
+                      <PhoneInput id="father-phone" value={fatherData.phoneNumber} onChange={value => setFatherData({
+                        ...fatherData,
+                        phoneNumber: value
+                      })} disabled={fatherPhoneVerified} className={fatherPhoneVerified ? "bg-muted/50 border-green-200 dark:border-green-800 cursor-not-allowed" : `bg-background/50 hover:border-primary/50 focus:border-primary transition-all duration-200 ${fatherErrors.phoneNumber ? 'phone-input-error' : ''}`} />
                       {fatherPhoneVerified && <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
                           <CheckCircle2 className="w-3 h-3" />
                           Phone verified and locked
@@ -1457,10 +1772,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="father-dob" className="text-sm font-semibold">Date of Birth *</Label>
-                      <Input id="father-dob" type="date" value={fatherData.dateOfBirth} onChange={e => {
-                        setFatherData({ ...fatherData, dateOfBirth: e.target.value });
-                        clearFieldError(setFatherErrors, 'dateOfBirth');
-                      }} className={`bg-background/50 ${fatherErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
+                      <Input id="father-dob" type="date" value={fatherData.dateOfBirth} onChange={e => setFatherData({
+                        ...fatherData,
+                        dateOfBirth: e.target.value
+                      })} className={`bg-background/50 ${fatherErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
                       {fatherErrors.dateOfBirth && <p className="text-xs text-destructive">{fatherErrors.dateOfBirth}</p>}
                     </div>
                     
@@ -1492,10 +1807,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="father-bc" className="text-sm font-semibold">Birth Certificate No *</Label>
-                      <Input id="father-bc" value={fatherData.birthCertificateNo} onChange={e => {
-                        setFatherData({ ...fatherData, birthCertificateNo: e.target.value });
-                        clearFieldError(setFatherErrors, 'birthCertificateNo');
-                      }} className={`bg-background/50 ${fatherErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
+                      <Input id="father-bc" value={fatherData.birthCertificateNo} onChange={e => setFatherData({
+                        ...fatherData,
+                        birthCertificateNo: e.target.value
+                      })} className={`bg-background/50 ${fatherErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
                       {fatherErrors.birthCertificateNo && <p className="text-xs text-destructive">{fatherErrors.birthCertificateNo}</p>}
                     </div>
 
@@ -1567,10 +1882,10 @@ const RegisterStudent = () => {
                     district={fatherData.district}
                     city={fatherData.city}
                     postalCode={fatherData.postalCode}
-                    onProvinceChange={(value) => { setFatherData({ ...fatherData, province: value }); clearFieldError(setFatherErrors, 'province'); }}
-                    onDistrictChange={(value) => { setFatherData({ ...fatherData, district: value }); clearFieldError(setFatherErrors, 'district'); }}
-                    onCityChange={(value) => { setFatherData({ ...fatherData, city: value }); clearFieldError(setFatherErrors, 'city'); }}
-                    onPostalCodeChange={(value) => { setFatherData({ ...fatherData, postalCode: value }); clearFieldError(setFatherErrors, 'postalCode'); }}
+                    onProvinceChange={(value) => setFatherData({ ...fatherData, province: value })}
+                    onDistrictChange={(value) => setFatherData({ ...fatherData, district: value })}
+                    onCityChange={(value) => setFatherData({ ...fatherData, city: value })}
+                    onPostalCodeChange={(value) => setFatherData({ ...fatherData, postalCode: value })}
                     errors={{
                       province: fatherErrors.province,
                       district: fatherErrors.district,
@@ -1587,43 +1902,8 @@ const RegisterStudent = () => {
                     })} className="bg-background/50 border-border/50" disabled placeholder="Sri Lanka" />
                   </div>
 
-                   <div className="space-y-3">
-                    <Label className="text-sm font-semibold">Profile Image (Optional)</Label>
-                    
-                    {/* Photo Guidelines */}
-                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                      <div className="flex flex-col sm:flex-row gap-4 items-start">
-                        <div className="shrink-0">
-                          <img 
-                            src={photoGuideExample} 
-                            alt="Photo guide example" 
-                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border-2 border-primary/30 shadow-sm"
-                          />
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <h4 className="font-semibold text-primary text-sm flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4" />
-                            Photo Guidelines
-                          </h4>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            <li className="flex items-start gap-2">
-                              <span className="text-primary">•</span>
-                              <span>Face should be <strong>directed forward</strong></span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-primary">•</span>
-                              <span>Eyes should be <strong>clearly visible</strong></span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-primary">•</span>
-                              <span>Similar to passport photo style</span>
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Upload Area */}
+                   <div className="space-y-2">
+                    <Label>Profile Image (Optional)</Label>
                     <div className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                       <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setFatherData)} className="hidden" id="father-image" />
                       <label htmlFor="father-image" className="cursor-pointer">
@@ -1649,7 +1929,7 @@ const RegisterStudent = () => {
 
               {/* Mother Details Tab */}
               <TabsContent value="mother" className="space-y-6 mt-6">
-                {showMotherForm && !motherEditMode ? <ParentExistsForm parentType="Mother" onExistingParent={handleExistingMother} onNewParent={handleNewMother} onSkip={handleSkipMother} canSkip={true} /> : <>
+                {showMotherForm && !motherEditMode ? <ParentExistsForm parentType="Mother" onExistingParent={handleExistingMother} onNewParent={handleNewMother} onSkip={handleSkipMother} canSkip={true} selectionData={getMotherSelectionData()} onResetSelection={handleResetMotherSelection} /> : <>
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 pb-4 border-b border-border/50">
                         <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg">
@@ -1663,8 +1943,10 @@ const RegisterStudent = () => {
                       <Label htmlFor="mother-firstName" className="text-sm font-semibold">First Name *</Label>
                       <Input id="mother-firstName" value={motherData.firstName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setMotherData({ ...motherData, firstName: value });
-                        clearFieldError(setMotherErrors, 'firstName');
+                        setMotherData({
+                          ...motherData,
+                          firstName: value
+                        });
                       }} maxLength={50} className={`bg-background/50 ${motherErrors.firstName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., HEWAGE MUDIYANSELAGE" />
                       {motherErrors.firstName && <p className="text-xs text-destructive">{motherErrors.firstName}</p>}
                     </div>
@@ -1673,8 +1955,10 @@ const RegisterStudent = () => {
                       <Label htmlFor="mother-lastName" className="text-sm font-semibold">Last Name *</Label>
                       <Input id="mother-lastName" value={motherData.lastName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setMotherData({ ...motherData, lastName: value });
-                        clearFieldError(setMotherErrors, 'lastName');
+                        setMotherData({
+                          ...motherData,
+                          lastName: value
+                        });
                       }} maxLength={50} className={`bg-background/50 ${motherErrors.lastName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., DON GAMAGE" />
                       {motherErrors.lastName && <p className="text-xs text-destructive">{motherErrors.lastName}</p>}
                     </div>
@@ -1686,10 +1970,10 @@ const RegisterStudent = () => {
                         Email Address *
                         {motherEmailVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />}
                       </Label>
-                      <Input id="mother-email" type="email" value={motherData.email} onChange={e => {
-                        setMotherData({ ...motherData, email: e.target.value });
-                        clearFieldError(setMotherErrors, 'email');
-                      }} disabled={motherEmailVerified} className={motherEmailVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${motherErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
+                      <Input id="mother-email" type="email" value={motherData.email} onChange={e => setMotherData({
+                        ...motherData,
+                        email: e.target.value
+                      })} disabled={motherEmailVerified} className={motherEmailVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${motherErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
                       {motherEmailVerified && <p className="text-xs text-muted-foreground">Email verified and locked</p>}
                       {motherErrors.email && !motherEmailVerified && <p className="text-xs text-destructive">{motherErrors.email}</p>}
                     </div>
@@ -1699,10 +1983,10 @@ const RegisterStudent = () => {
                         Phone Number *
                         {motherPhoneVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />}
                       </Label>
-                      <PhoneInput id="mother-phone" value={motherData.phoneNumber} onChange={value => {
-                        setMotherData({ ...motherData, phoneNumber: value });
-                        clearFieldError(setMotherErrors, 'phoneNumber');
-                      }} disabled={motherPhoneVerified} className={motherPhoneVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${motherErrors.phoneNumber ? 'phone-input-error' : 'border-border/50'}`} />
+                      <PhoneInput id="mother-phone" value={motherData.phoneNumber} onChange={value => setMotherData({
+                        ...motherData,
+                        phoneNumber: value
+                      })} disabled={motherPhoneVerified} className={motherPhoneVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${motherErrors.phoneNumber ? 'phone-input-error' : 'border-border/50'}`} />
                       {motherPhoneVerified && <p className="text-xs text-muted-foreground">Phone verified and locked</p>}
                       {motherErrors.phoneNumber && !motherPhoneVerified && <p className="text-xs text-destructive">{motherErrors.phoneNumber}</p>}
                     </div>
@@ -1711,10 +1995,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="mother-dob" className="text-sm font-semibold">Date of Birth *</Label>
-                      <Input id="mother-dob" type="date" value={motherData.dateOfBirth} onChange={e => {
-                        setMotherData({ ...motherData, dateOfBirth: e.target.value });
-                        clearFieldError(setMotherErrors, 'dateOfBirth');
-                      }} className={`bg-background/50 ${motherErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
+                      <Input id="mother-dob" type="date" value={motherData.dateOfBirth} onChange={e => setMotherData({
+                        ...motherData,
+                        dateOfBirth: e.target.value
+                      })} className={`bg-background/50 ${motherErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
                       {motherErrors.dateOfBirth && <p className="text-xs text-destructive">{motherErrors.dateOfBirth}</p>}
                     </div>
                     
@@ -1746,10 +2030,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="mother-bc" className="text-sm font-semibold">Birth Certificate No *</Label>
-                      <Input id="mother-bc" value={motherData.birthCertificateNo} onChange={e => {
-                        setMotherData({ ...motherData, birthCertificateNo: e.target.value });
-                        clearFieldError(setMotherErrors, 'birthCertificateNo');
-                      }} className={`bg-background/50 ${motherErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
+                      <Input id="mother-bc" value={motherData.birthCertificateNo} onChange={e => setMotherData({
+                        ...motherData,
+                        birthCertificateNo: e.target.value
+                      })} className={`bg-background/50 ${motherErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
                       {motherErrors.birthCertificateNo && <p className="text-xs text-destructive">{motherErrors.birthCertificateNo}</p>}
                     </div>
 
@@ -1821,10 +2105,10 @@ const RegisterStudent = () => {
                     district={motherData.district}
                     city={motherData.city}
                     postalCode={motherData.postalCode}
-                    onProvinceChange={(value) => { setMotherData({ ...motherData, province: value }); clearFieldError(setMotherErrors, 'province'); }}
-                    onDistrictChange={(value) => { setMotherData({ ...motherData, district: value }); clearFieldError(setMotherErrors, 'district'); }}
-                    onCityChange={(value) => { setMotherData({ ...motherData, city: value }); clearFieldError(setMotherErrors, 'city'); }}
-                    onPostalCodeChange={(value) => { setMotherData({ ...motherData, postalCode: value }); clearFieldError(setMotherErrors, 'postalCode'); }}
+                    onProvinceChange={(value) => setMotherData({ ...motherData, province: value })}
+                    onDistrictChange={(value) => setMotherData({ ...motherData, district: value })}
+                    onCityChange={(value) => setMotherData({ ...motherData, city: value })}
+                    onPostalCodeChange={(value) => setMotherData({ ...motherData, postalCode: value })}
                     errors={{
                       province: motherErrors.province,
                       district: motherErrors.district,
@@ -1841,43 +2125,8 @@ const RegisterStudent = () => {
                     })} className="bg-background/50 border-border/50" disabled placeholder="Sri Lanka" />
                   </div>
 
-                   <div className="space-y-3">
-                    <Label className="text-sm font-semibold">Profile Image (Optional)</Label>
-                    
-                    {/* Photo Guidelines */}
-                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                      <div className="flex flex-col sm:flex-row gap-4 items-start">
-                        <div className="shrink-0">
-                          <img 
-                            src={photoGuideExample} 
-                            alt="Photo guide example" 
-                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border-2 border-primary/30 shadow-sm"
-                          />
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <h4 className="font-semibold text-primary text-sm flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4" />
-                            Photo Guidelines
-                          </h4>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            <li className="flex items-start gap-2">
-                              <span className="text-primary">•</span>
-                              <span>Face should be <strong>directed forward</strong></span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-primary">•</span>
-                              <span>Eyes should be <strong>clearly visible</strong></span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-primary">•</span>
-                              <span>Similar to passport photo style</span>
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Upload Area */}
+                   <div className="space-y-2">
+                    <Label>Profile Image (Optional)</Label>
                     <div className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                       <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setMotherData)} className="hidden" id="mother-image" />
                       <label htmlFor="mother-image" className="cursor-pointer">
@@ -1905,7 +2154,7 @@ const RegisterStudent = () => {
 
               {/* Guardian Details Tab */}
               <TabsContent value="guardian" className="space-y-6 mt-6">
-                {showGuardianForm && !guardianEditMode ? <ParentExistsForm parentType="Guardian" onExistingParent={handleExistingGuardian} onNewParent={handleNewGuardian} onSkip={handleSkipGuardian} hasFather={fatherCompleted || fatherExists || !!studentData.studentData.fatherId} hasMother={motherCompleted || motherExists || !!studentData.studentData.motherId} /> : <>
+                {showGuardianForm && !guardianEditMode ? <ParentExistsForm parentType="Guardian" onExistingParent={handleExistingGuardian} onNewParent={handleNewGuardian} onSkip={handleSkipGuardian} hasFather={fatherCompleted || fatherExists || !!studentData.studentData.fatherId} hasMother={motherCompleted || motherExists || !!studentData.studentData.motherId} selectionData={getGuardianSelectionData()} onResetSelection={handleResetGuardianSelection} /> : <>
                     <div className="space-y-6">
                       <div className="flex items-center gap-3 pb-4 border-b border-border/50">
                         <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center shadow-lg">
@@ -1919,8 +2168,10 @@ const RegisterStudent = () => {
                       <Label htmlFor="guardian-firstName" className="text-sm font-semibold">First Name *</Label>
                       <Input id="guardian-firstName" value={guardianData.firstName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setGuardianData({ ...guardianData, firstName: value });
-                        clearFieldError(setGuardianErrors, 'firstName');
+                        setGuardianData({
+                          ...guardianData,
+                          firstName: value
+                        });
                       }} maxLength={50} className={`bg-background/50 ${guardianErrors.firstName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., HEWAGE MUDIYANSELAGE" />
                       {guardianErrors.firstName && <p className="text-xs text-destructive">{guardianErrors.firstName}</p>}
                     </div>
@@ -1929,8 +2180,10 @@ const RegisterStudent = () => {
                       <Label htmlFor="guardian-lastName" className="text-sm font-semibold">Last Name *</Label>
                       <Input id="guardian-lastName" value={guardianData.lastName} onChange={e => {
                         const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                        setGuardianData({ ...guardianData, lastName: value });
-                        clearFieldError(setGuardianErrors, 'lastName');
+                        setGuardianData({
+                          ...guardianData,
+                          lastName: value
+                        });
                       }} maxLength={50} className={`bg-background/50 ${guardianErrors.lastName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., DON GAMAGE" />
                       {guardianErrors.lastName && <p className="text-xs text-destructive">{guardianErrors.lastName}</p>}
                     </div>
@@ -1942,10 +2195,10 @@ const RegisterStudent = () => {
                         Email Address *
                         {guardianEmailVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />}
                       </Label>
-                      <Input id="guardian-email" type="email" value={guardianData.email} onChange={e => {
-                        setGuardianData({ ...guardianData, email: e.target.value });
-                        clearFieldError(setGuardianErrors, 'email');
-                      }} disabled={guardianEmailVerified} className={guardianEmailVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${guardianErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
+                      <Input id="guardian-email" type="email" value={guardianData.email} onChange={e => setGuardianData({
+                        ...guardianData,
+                        email: e.target.value
+                      })} disabled={guardianEmailVerified} className={guardianEmailVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${guardianErrors.email ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="email@example.com" />
                       {guardianEmailVerified && <p className="text-xs text-muted-foreground">Email verified and locked</p>}
                       {guardianErrors.email && !guardianEmailVerified && <p className="text-xs text-destructive">{guardianErrors.email}</p>}
                     </div>
@@ -1955,10 +2208,10 @@ const RegisterStudent = () => {
                         Phone Number *
                         {guardianPhoneVerified && <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />}
                       </Label>
-                      <PhoneInput id="guardian-phone" value={guardianData.phoneNumber} onChange={value => {
-                        setGuardianData({ ...guardianData, phoneNumber: value });
-                        clearFieldError(setGuardianErrors, 'phoneNumber');
-                      }} disabled={guardianPhoneVerified} className={guardianPhoneVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${guardianErrors.phoneNumber ? 'phone-input-error' : 'border-border/50'}`} />
+                      <PhoneInput id="guardian-phone" value={guardianData.phoneNumber} onChange={value => setGuardianData({
+                        ...guardianData,
+                        phoneNumber: value
+                      })} disabled={guardianPhoneVerified} className={guardianPhoneVerified ? "bg-muted/50 border-border/50 cursor-not-allowed opacity-75" : `bg-background/50 ${guardianErrors.phoneNumber ? 'phone-input-error' : 'border-border/50'}`} />
                       {guardianPhoneVerified && <p className="text-xs text-muted-foreground">Phone verified and locked</p>}
                       {guardianErrors.phoneNumber && !guardianPhoneVerified && <p className="text-xs text-destructive">{guardianErrors.phoneNumber}</p>}
                     </div>
@@ -1967,19 +2220,19 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="guardian-dob" className="text-sm font-semibold">Date of Birth *</Label>
-                      <Input id="guardian-dob" type="date" value={guardianData.dateOfBirth} onChange={e => {
-                        setGuardianData({ ...guardianData, dateOfBirth: e.target.value });
-                        clearFieldError(setGuardianErrors, 'dateOfBirth');
-                      }} className={`bg-background/50 ${guardianErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
+                      <Input id="guardian-dob" type="date" value={guardianData.dateOfBirth} onChange={e => setGuardianData({
+                        ...guardianData,
+                        dateOfBirth: e.target.value
+                      })} className={`bg-background/50 ${guardianErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
                       {guardianErrors.dateOfBirth && <p className="text-xs text-destructive">{guardianErrors.dateOfBirth}</p>}
                     </div>
                     
                     <div className="space-y-2">
                       <Label htmlFor="guardian-gender" className="text-sm font-semibold">Gender *</Label>
-                      <Select onValueChange={value => {
-                        setGuardianData({ ...guardianData, gender: value });
-                        clearFieldError(setGuardianErrors, 'gender');
-                      }}>
+                      <Select onValueChange={value => setGuardianData({
+                        ...guardianData,
+                        gender: value
+                      })}>
                         <SelectTrigger className={`bg-background/50 ${guardianErrors.gender ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`}>
                           <SelectValue placeholder="Select gender" />
                         </SelectTrigger>
@@ -1997,10 +2250,10 @@ const RegisterStudent = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="guardian-bc" className="text-sm font-semibold">Birth Certificate No *</Label>
-                      <Input id="guardian-bc" value={guardianData.birthCertificateNo} onChange={e => {
-                        setGuardianData({ ...guardianData, birthCertificateNo: e.target.value });
-                        clearFieldError(setGuardianErrors, 'birthCertificateNo');
-                      }} className={`bg-background/50 ${guardianErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
+                      <Input id="guardian-bc" value={guardianData.birthCertificateNo} onChange={e => setGuardianData({
+                        ...guardianData,
+                        birthCertificateNo: e.target.value
+                      })} className={`bg-background/50 ${guardianErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
                       {guardianErrors.birthCertificateNo && <p className="text-xs text-destructive">{guardianErrors.birthCertificateNo}</p>}
                     </div>
 
@@ -2072,10 +2325,10 @@ const RegisterStudent = () => {
                     district={guardianData.district}
                     city={guardianData.city}
                     postalCode={guardianData.postalCode}
-                    onProvinceChange={(value) => { setGuardianData({ ...guardianData, province: value }); clearFieldError(setGuardianErrors, 'province'); }}
-                    onDistrictChange={(value) => { setGuardianData({ ...guardianData, district: value }); clearFieldError(setGuardianErrors, 'district'); }}
-                    onCityChange={(value) => { setGuardianData({ ...guardianData, city: value }); clearFieldError(setGuardianErrors, 'city'); }}
-                    onPostalCodeChange={(value) => { setGuardianData({ ...guardianData, postalCode: value }); clearFieldError(setGuardianErrors, 'postalCode'); }}
+                    onProvinceChange={(value) => setGuardianData({ ...guardianData, province: value })}
+                    onDistrictChange={(value) => setGuardianData({ ...guardianData, district: value })}
+                    onCityChange={(value) => setGuardianData({ ...guardianData, city: value })}
+                    onPostalCodeChange={(value) => setGuardianData({ ...guardianData, postalCode: value })}
                     errors={{
                       province: guardianErrors.province,
                       district: guardianErrors.district,
@@ -2092,43 +2345,8 @@ const RegisterStudent = () => {
                     })} className="bg-background/50 border-border/50" disabled placeholder="Sri Lanka" />
                   </div>
 
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold">Profile Image (Optional)</Label>
-                    
-                    {/* Photo Guidelines */}
-                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                      <div className="flex flex-col sm:flex-row gap-4 items-start">
-                        <div className="shrink-0">
-                          <img 
-                            src={photoGuideExample} 
-                            alt="Photo guide example" 
-                            className="w-20 h-20 sm:w-24 sm:h-24 rounded-lg object-cover border-2 border-primary/30 shadow-sm"
-                          />
-                        </div>
-                        <div className="flex-1 space-y-2">
-                          <h4 className="font-semibold text-primary text-sm flex items-center gap-2">
-                            <CheckCircle2 className="w-4 h-4" />
-                            Photo Guidelines
-                          </h4>
-                          <ul className="text-xs text-muted-foreground space-y-1">
-                            <li className="flex items-start gap-2">
-                              <span className="text-primary">•</span>
-                              <span>Face should be <strong>directed forward</strong></span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-primary">•</span>
-                              <span>Eyes should be <strong>clearly visible</strong></span>
-                            </li>
-                            <li className="flex items-start gap-2">
-                              <span className="text-primary">•</span>
-                              <span>Similar to passport photo style</span>
-                            </li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    {/* Upload Area */}
+                  <div className="space-y-2">
+                    <Label>Profile Image</Label>
                     <div className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                       <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setGuardianData)} className="hidden" id="guardian-image" />
                       <label htmlFor="guardian-image" className="cursor-pointer">
@@ -2188,21 +2406,10 @@ const RegisterStudent = () => {
                           <Label htmlFor="verify-phone">Phone Number</Label>
                           <div className="flex flex-col sm:flex-row gap-2">
                             <PhoneInput id="verify-phone" value={studentPhoneForVerification} onChange={setStudentPhoneForVerification} disabled={phoneOTPSent || studentPhoneVerified} className="bg-background/50 border-border/50 flex-1" />
-                            {!studentPhoneVerified && (
-                              <Button type="button" onClick={handleRequestPhoneOTP} disabled={isRequestingPhoneOTP || phoneOTPSent} className="w-full sm:w-auto shrink-0">
-                                {isRequestingPhoneOTP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {phoneOTPSent ? "OTP Sent" : "Send OTP"}
-                              </Button>
-                            )}
-                            {(phoneOTPSent || studentPhoneVerified) && (
-                              <Button type="button" variant="outline" onClick={() => {
-                                setPhoneOTPSent(false);
-                                setStudentPhoneVerified(false);
-                                setPhoneOTP("");
-                              }} className="w-full sm:w-auto shrink-0">
-                                Change Number
-                              </Button>
-                            )}
+                            <Button type="button" onClick={handleRequestPhoneOTP} disabled={isRequestingPhoneOTP || phoneOTPSent || studentPhoneVerified} className="w-full sm:w-auto shrink-0">
+                              {isRequestingPhoneOTP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              {studentPhoneVerified ? "Verified" : phoneOTPSent ? "OTP Sent" : "Send OTP"}
+                            </Button>
                           </div>
                         </div>
 
@@ -2251,23 +2458,11 @@ const RegisterStudent = () => {
                         <div className="space-y-2">
                           <Label htmlFor="verify-email">Email Address</Label>
                           <div className="flex flex-col sm:flex-row gap-2">
-                            <Input id="verify-email" type="email" value={studentEmailForVerification} onChange={e => setStudentEmailForVerification(e.target.value)} disabled={emailOTPSent || studentEmailVerified} className="bg-background/50 border-border/50 flex-1" placeholder="example@email.com" />
-                            {!studentEmailVerified && (
-                              <Button type="button" onClick={handleRequestEmailOTP} disabled={isRequestingEmailOTP || emailOTPSent} className="w-full sm:w-auto shrink-0">
-                                {isRequestingEmailOTP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {emailOTPSent ? "OTP Sent" : "Send OTP"}
-                              </Button>
-                            )}
-                            {(emailOTPSent || studentEmailVerified) && (
-                              <Button type="button" variant="outline" onClick={() => {
-                                setEmailOTPSent(false);
-                                setStudentEmailVerified(false);
-                                setEmailOTP("");
-                                setShowStudentForm(false);
-                              }} className="w-full sm:w-auto shrink-0">
-                                Change Email
-                              </Button>
-                            )}
+                            <Input id="verify-email" type="email" value={studentEmailForVerification} onChange={e => setStudentEmailForVerification(e.target.value)} disabled={emailOTPSent} className="bg-background/50 border-border/50 flex-1" placeholder="example@email.com" />
+                            <Button type="button" onClick={handleRequestEmailOTP} disabled={isRequestingEmailOTP || emailOTPSent} className="w-full sm:w-auto shrink-0">
+                              {isRequestingEmailOTP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                              {emailOTPSent ? "OTP Sent" : "Send OTP"}
+                            </Button>
                           </div>
                         </div>
 
@@ -2368,8 +2563,10 @@ const RegisterStudent = () => {
                           <Label htmlFor="student-firstName" className="text-sm font-semibold">First Name *</Label>
                           <Input id="student-firstName" value={studentData.firstName} onChange={e => {
                             const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                            setStudentData({ ...studentData, firstName: value });
-                            clearFieldError(setStudentErrors, 'firstName');
+                            setStudentData({
+                              ...studentData,
+                              firstName: value
+                            });
                           }} maxLength={50} className={`bg-background/50 ${studentErrors.firstName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., HEWAGE MUDIYANSELAGE" />
                           {studentErrors.firstName && <p className="text-xs text-destructive">{studentErrors.firstName}</p>}
                         </div>
@@ -2378,8 +2575,10 @@ const RegisterStudent = () => {
                           <Label htmlFor="student-lastName" className="text-sm font-semibold">Last Name *</Label>
                           <Input id="student-lastName" value={studentData.lastName} onChange={e => {
                             const value = e.target.value.toUpperCase().replace(/[^A-Z ]/g, '').replace(/  +/g, ' ');
-                            setStudentData({ ...studentData, lastName: value });
-                            clearFieldError(setStudentErrors, 'lastName');
+                            setStudentData({
+                              ...studentData,
+                              lastName: value
+                            });
                           }} maxLength={50} className={`bg-background/50 ${studentErrors.lastName ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="e.g., DON GAMAGE" />
                           {studentErrors.lastName && <p className="text-xs text-destructive">{studentErrors.lastName}</p>}
                         </div>
@@ -2388,19 +2587,19 @@ const RegisterStudent = () => {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="student-dob" className="text-sm font-semibold">Date of Birth *</Label>
-                          <Input id="student-dob" type="date" value={studentData.dateOfBirth} onChange={e => {
-                        setStudentData({ ...studentData, dateOfBirth: e.target.value });
-                        clearFieldError(setStudentErrors, 'dateOfBirth');
-                      }} className={`bg-background/50 ${studentErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
+                          <Input id="student-dob" type="date" value={studentData.dateOfBirth} onChange={e => setStudentData({
+                        ...studentData,
+                        dateOfBirth: e.target.value
+                      })} className={`bg-background/50 ${studentErrors.dateOfBirth ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} />
                           {studentErrors.dateOfBirth && <p className="text-xs text-destructive">{studentErrors.dateOfBirth}</p>}
                         </div>
                         
                         <div className="space-y-2">
                           <Label htmlFor="student-gender" className="text-sm font-semibold">Gender *</Label>
-                          <Select onValueChange={value => {
-                        setStudentData({ ...studentData, gender: value });
-                        clearFieldError(setStudentErrors, 'gender');
-                      }}>
+                          <Select onValueChange={value => setStudentData({
+                        ...studentData,
+                        gender: value
+                      })}>
                             <SelectTrigger className={`bg-background/50 ${studentErrors.gender ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`}>
                               <SelectValue placeholder="Select gender" />
                             </SelectTrigger>
@@ -2417,10 +2616,10 @@ const RegisterStudent = () => {
 
                       <div className="space-y-2">
                         <Label htmlFor="student-bc" className="text-sm font-semibold">Birth Certificate No *</Label>
-                        <Input id="student-bc" value={studentData.birthCertificateNo} onChange={e => {
-                      setStudentData({ ...studentData, birthCertificateNo: e.target.value });
-                      clearFieldError(setStudentErrors, 'birthCertificateNo');
-                    }} className={`bg-background/50 ${studentErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
+                        <Input id="student-bc" value={studentData.birthCertificateNo} onChange={e => setStudentData({
+                      ...studentData,
+                      birthCertificateNo: e.target.value
+                    })} className={`bg-background/50 ${studentErrors.birthCertificateNo ? 'border-destructive ring-2 ring-destructive/20' : 'border-border/50'}`} placeholder="123456789" />
                         {studentErrors.birthCertificateNo && <p className="text-xs text-destructive">{studentErrors.birthCertificateNo}</p>}
                       </div>
 
@@ -2445,10 +2644,10 @@ const RegisterStudent = () => {
                         district={studentData.district}
                         city={studentData.city}
                         postalCode={studentData.postalCode}
-                        onProvinceChange={(value) => { setStudentData({ ...studentData, province: value }); clearFieldError(setStudentErrors, 'province'); }}
-                        onDistrictChange={(value) => { setStudentData({ ...studentData, district: value }); clearFieldError(setStudentErrors, 'district'); }}
-                        onCityChange={(value) => { setStudentData({ ...studentData, city: value }); clearFieldError(setStudentErrors, 'city'); }}
-                        onPostalCodeChange={(value) => { setStudentData({ ...studentData, postalCode: value }); clearFieldError(setStudentErrors, 'postalCode'); }}
+                        onProvinceChange={(value) => setStudentData({ ...studentData, province: value })}
+                        onDistrictChange={(value) => setStudentData({ ...studentData, district: value })}
+                        onCityChange={(value) => setStudentData({ ...studentData, city: value })}
+                        onPostalCodeChange={(value) => setStudentData({ ...studentData, postalCode: value })}
                         errors={{
                           province: studentErrors.province,
                           district: studentErrors.district,
@@ -2611,59 +2810,17 @@ const RegisterStudent = () => {
                         </div>
                       </div>
 
-                      <div className="space-y-3">
-                        <Label className="text-sm font-semibold">Profile Image *</Label>
-                        
-                        {/* Photo Instructions with Example */}
-                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
-                          <div className="flex flex-col sm:flex-row gap-4 items-start">
-                            {/* Example Photo */}
-                            <div className="shrink-0">
-                              <img 
-                                src={photoGuideExample} 
-                                alt="Photo guide example" 
-                                className="w-24 h-24 sm:w-28 sm:h-28 rounded-lg object-cover border-2 border-primary/30 shadow-sm"
-                              />
-                            </div>
-                            {/* Instructions */}
-                            <div className="flex-1 space-y-2">
-                              <h4 className="font-semibold text-primary text-sm flex items-center gap-2">
-                                <CheckCircle2 className="w-4 h-4" />
-                                Photo Guidelines
-                              </h4>
-                              <ul className="text-xs text-muted-foreground space-y-1">
-                                <li className="flex items-start gap-2">
-                                  <span className="text-primary">•</span>
-                                  <span>Face should be <strong>directed forward</strong></span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                  <span className="text-primary">•</span>
-                                  <span>Eyes should be <strong>clearly visible</strong></span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                  <span className="text-primary">•</span>
-                                  <span>Background is <strong>not an issue</strong></span>
-                                </li>
-                                <li className="flex items-start gap-2">
-                                  <span className="text-primary">•</span>
-                                  <span>Similar to passport photo style</span>
-                                </li>
-                              </ul>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Upload Area */}
-                        <div className={`border-2 border-dashed rounded-lg p-6 text-center hover:border-primary/50 transition-colors ${studentErrors.image ? 'border-destructive bg-destructive/5' : 'border-border/50'}`}>
+                      <div className="space-y-2">
+                        <Label>Profile Image</Label>
+                        <div className="border-2 border-dashed border-border/50 rounded-lg p-6 text-center hover:border-primary/50 transition-colors">
                           <input type="file" accept="image/*" onChange={e => handleImageUpload(e, setStudentData)} className="hidden" id="student-image" />
                           <label htmlFor="student-image" className="cursor-pointer">
-                            <Upload className={`w-8 h-8 mx-auto mb-2 ${studentErrors.image ? 'text-destructive' : 'text-muted-foreground'}`} />
-                            <p className={`text-sm ${studentErrors.image ? 'text-destructive' : 'text-muted-foreground'}`}>
+                            <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                            <p className="text-sm text-muted-foreground">
                               {studentData.image ? studentData.image.name : "Click to upload profile image"}
                             </p>
                           </label>
                         </div>
-                        {studentErrors.image && <p className="text-xs text-destructive">{studentErrors.image}</p>}
                       </div>
                     </div>
 
@@ -2765,7 +2922,6 @@ const RegisterStudent = () => {
                 setEmailOTPSent(false);
                 setShowStudentForm(false);
                 setStudentSubmitted(false);
-                setStudentImageUrl(""); // Clear cached image URL for new sibling
                 
                 // Stay on student tab for sibling registration
                 setActiveTab("student");

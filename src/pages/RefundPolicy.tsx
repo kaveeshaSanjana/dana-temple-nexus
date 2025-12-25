@@ -448,8 +448,8 @@ const RefundPolicy = () => {
                             <strong className="text-black">PV 00342747</strong>
                           </div>
                           <div className="flex items-start gap-3">
-                            <span className="text-sm text-gray-700 min-w-[140px]">Address:</span>
-                            <span className="text-gray-700">188/79 The Finans Waththa, Wilimbula, Henegama</span>
+                            <span className="text-sm text-gray-600 min-w-[140px]">Registered Address:</span>
+                            <span className="text-gray-700">Gampaha, Sri Lanka</span>
                           </div>
                           <div className="flex items-start gap-3">
                             <span className="text-sm text-gray-700 min-w-[140px]">Phone:</span>

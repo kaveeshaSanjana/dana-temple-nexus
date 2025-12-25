@@ -19,7 +19,7 @@ const Footer = () => {
                 Reg. No: PV 00342747
               </p>
               <p className="text-blue-200 text-xs mb-1">
-                188/79 The Finans Waththa, Wilimbula, Henegama
+                Gampaha, Sri Lanka
               </p>
               <p className="text-blue-200 text-xs font-medium">
                 📞 +94 70 330 0524
