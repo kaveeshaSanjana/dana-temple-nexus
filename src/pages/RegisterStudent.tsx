@@ -121,19 +121,19 @@ const RegisterStudent = () => {
   // Check if any cached data exists
   const hasCachedData = () => {
     try {
-      const savedState = localStorage.getItem(STORAGE_KEY_REGISTRATION_STATE);
-      const savedFormData = localStorage.getItem(STORAGE_KEY_FORM_DATA);
+      const savedState = sessionStorage.getItem(STORAGE_KEY_REGISTRATION_STATE);
+      const savedFormData = sessionStorage.getItem(STORAGE_KEY_FORM_DATA);
       return !!(savedState || savedFormData);
     } catch {
       return false;
     }
   };
 
-  // Clear all registration data from localStorage
+  // Clear all registration data from sessionStorage (more secure than localStorage)
   const handleClearAllData = () => {
     try {
-      localStorage.removeItem(STORAGE_KEY_REGISTRATION_STATE);
-      localStorage.removeItem(STORAGE_KEY_FORM_DATA);
+      sessionStorage.removeItem(STORAGE_KEY_REGISTRATION_STATE);
+      sessionStorage.removeItem(STORAGE_KEY_FORM_DATA);
       
       // Reset all form states to initial values
       setActiveTab("father");
@@ -387,11 +387,11 @@ const RegisterStudent = () => {
     }
   });
 
-  // Load saved form data and state from localStorage on mount
+  // Load saved form data and state from sessionStorage on mount (more secure than localStorage)
   useEffect(() => {
     try {
       // Load registration state
-      const savedState = localStorage.getItem(STORAGE_KEY_REGISTRATION_STATE);
+      const savedState = sessionStorage.getItem(STORAGE_KEY_REGISTRATION_STATE);
       if (savedState) {
         const state = JSON.parse(savedState);
         setActiveTab(state.activeTab || "father");
@@ -513,7 +513,7 @@ const RegisterStudent = () => {
         guardianPhoneVerified,
         guardianEmailVerified
       };
-      localStorage.setItem(STORAGE_KEY_REGISTRATION_STATE, JSON.stringify(state));
+      sessionStorage.setItem(STORAGE_KEY_REGISTRATION_STATE, JSON.stringify(state));
     } catch (e) {
       // Error saving registration state
     }
@@ -522,7 +522,7 @@ const RegisterStudent = () => {
   // Clear saved data after successful registration completion
   const clearSavedRegistrationData = () => {
     try {
-      localStorage.removeItem(STORAGE_KEY_REGISTRATION_STATE);
+      sessionStorage.removeItem(STORAGE_KEY_REGISTRATION_STATE);
     } catch (e) {
       // Error clearing saved data
     }
