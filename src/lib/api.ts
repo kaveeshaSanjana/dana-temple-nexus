@@ -6,14 +6,16 @@ const STORAGE_BASE_URL = 'https://storage.suraksha.lk';
 
 /**
  * Get API base URL from environment configuration
- * Priority: localStorage > environment variable > default
- * @security Never hardcode API URLs
+ * Priority: sessionStorage (debug only) > environment variable > default
+ * @security Never hardcode API URLs, sessionStorage clears on tab close
  */
 const getApiBaseUrl = (): string => {
-  // Allow override via localStorage for testing/debugging
-  const localStorageUrl = localStorage.getItem('apiBaseUrl');
-  if (localStorageUrl && env.enableDebug) {
-    return localStorageUrl;
+  // Allow override via sessionStorage for testing/debugging (more secure than localStorage)
+  if (env.enableDebug) {
+    const sessionUrl = sessionStorage.getItem('apiBaseUrl');
+    if (sessionUrl) {
+      return sessionUrl;
+    }
   }
   return env.apiBaseUrl;
 };

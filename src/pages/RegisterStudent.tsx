@@ -476,7 +476,7 @@ const RegisterStudent = () => {
     setIsInitialized(true);
   }, []);
 
-  // Save registration state to localStorage when it changes
+  // Save registration state to sessionStorage when it changes (more secure than localStorage)
   useEffect(() => {
     if (!isInitialized) return;
     try {
