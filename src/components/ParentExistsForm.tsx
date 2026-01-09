@@ -812,11 +812,11 @@ export const ParentExistsForm = ({
 
                 {/* Option: Already Registered */}
                 <Card 
-                  className="cursor-pointer border-2 hover:border-primary/50 hover:bg-accent/50 transition-all"
+                  className="cursor-pointer border-2 hover:border-primary/50 hover:bg-primary/5 transition-all"
                   onClick={() => setStep("existing")}
                 >
                   <CardContent className="flex items-center gap-4 p-4 sm:p-6">
-                    <div className="w-12 h-12 rounded-full bg-primary-foreground dark:bg-primary/80 flex items-center justify-center shrink-0">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center shrink-0">
                       <UserCheck className="w-6 h-6 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -831,12 +831,12 @@ export const ParentExistsForm = ({
 
                 {/* Option: Create New */}
                 <Card 
-                  className="cursor-pointer border-2 hover:border-primary/50 hover:bg-accent/50 transition-all"
+                  className="cursor-pointer border-2 hover:border-primary/50 hover:bg-primary/5 transition-all"
                   onClick={() => setStep("new-verify")}
                 >
                   <CardContent className="flex items-center gap-4 p-4 sm:p-6">
-                    <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center shrink-0">
-                      <UserPlus className="w-6 h-6 text-green-600" />
+                    <div className="w-12 h-12 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center shrink-0">
+                      <UserPlus className="w-6 h-6 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-base sm:text-lg">{t.registerNew} {getParentTypeName(parentType, true)}</h4>
@@ -852,7 +852,7 @@ export const ParentExistsForm = ({
                 {onSkip && canSkip && (
                   <div className="space-y-2">
                     <Card 
-                      className="cursor-pointer border-2 border-dashed hover:border-muted-foreground hover:bg-accent transition-all"
+                      className="cursor-pointer border-2 border-dashed hover:border-primary/50 hover:bg-primary/5 transition-all"
                       onClick={() => {
                         const newValue = !showSkipReasons;
                         setShowSkipReasons(newValue);
@@ -949,7 +949,7 @@ export const ParentExistsForm = ({
 
               <Card className="border-2 border-primary">
                 <CardHeader className="text-center pb-2">
-                  <div className="w-16 h-16 rounded-full bg-primary-foreground dark:bg-primary/80 flex items-center justify-center mx-auto mb-4">
+                  <div className="w-16 h-16 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center mx-auto mb-4">
                     <UserCheck className="w-8 h-8 text-primary" />
                   </div>
                   <CardTitle>{t.enterAccountNumber} - {getParentTypeName(parentType)}</CardTitle>
@@ -1007,8 +1007,8 @@ export const ParentExistsForm = ({
 
               <Card className="border-2 border-primary">
                 <CardHeader className="text-center pb-2">
-                  <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mx-auto mb-4">
-                    <Phone className="w-8 h-8 text-blue-600" />
+                  <div className="w-16 h-16 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center mx-auto mb-4">
+                    <Phone className="w-8 h-8 text-primary" />
                   </div>
                   <CardTitle>
                     {isStudentForm ? t.phoneOptional : t.verifyPhone}
@@ -1145,8 +1145,8 @@ export const ParentExistsForm = ({
 
               <Card className="border-2 border-primary">
                 <CardHeader className="text-center pb-2">
-                  <div className="w-16 h-16 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center mx-auto mb-4">
-                    <Mail className="w-8 h-8 text-purple-600" />
+                  <div className="w-16 h-16 rounded-full bg-primary/10 dark:bg-primary/20 flex items-center justify-center mx-auto mb-4">
+                    <Mail className="w-8 h-8 text-primary" />
                   </div>
                   <CardTitle>{t.verifyEmail}</CardTitle>
                   <CardDescription>
