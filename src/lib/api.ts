@@ -73,12 +73,31 @@ export interface SignedUrlResponse {
   };
 }
 
+/**
+ * Generate a UUID-based filename for S3 uploads
+ * @param originalExtension - The file extension (e.g., 'png', 'jpg')
+ * @returns A random UUID-based filename
+ */
+const generateUuidFilename = (originalExtension: string): string => {
+  // Generate a random UUID-like string
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let uuid = '';
+  for (let i = 0; i < 32; i++) {
+    uuid += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `${uuid}.${originalExtension}`;
+};
+
 export const generateSignedUrl = async (file: File, context: string = 'profile'): Promise<SignedUrlResponse> => {
   const folder = getFolderType(context as any);
   const token = getJwtToken();
   
+  // Extract file extension and generate UUID-based filename
+  const extension = file.name.split('.').pop()?.toLowerCase() || 'png';
+  const uuidFilename = generateUuidFilename(extension);
+  
   const params = new URLSearchParams({
-    fileName: file.name,
+    fileName: uuidFilename,
     contentType: file.type,
     fileSize: file.size.toString()
   });
