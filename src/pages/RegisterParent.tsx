@@ -13,6 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { SimpleLocationSelector } from "@/components/SimpleLocationSelector";
 import { FormFieldWithError, validateField, scrollToFirstError } from "@/components/FormFieldWithError";
 import { cn } from "@/lib/utils";
+import { EmailHelpSection } from "@/components/EmailHelpSection";
 
 const RegisterParent = () => {
   const formRef = useRef<HTMLFormElement>(null);
@@ -228,21 +229,24 @@ const RegisterParent = () => {
                 </h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormFieldWithError
-                    label="Email Address"
-                    required
-                    error={errors.email}
-                    id="field-email"
-                  >
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className={cn("bg-background/50 border-border/50", errors.email && "border-destructive ring-2 ring-destructive/20")}
-                      placeholder="Enter email address"
-                    />
-                  </FormFieldWithError>
+                  <div>
+                    <FormFieldWithError
+                      label="Email Address"
+                      required
+                      error={errors.email}
+                      id="field-email"
+                    >
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({...formData, email: e.target.value})}
+                        className={cn("bg-background/50 border-border/50", errors.email && "border-destructive ring-2 ring-destructive/20")}
+                        placeholder="Enter email address"
+                      />
+                    </FormFieldWithError>
+                    <EmailHelpSection />
+                  </div>
                   
                   <FormFieldWithError
                     label="Phone Number"

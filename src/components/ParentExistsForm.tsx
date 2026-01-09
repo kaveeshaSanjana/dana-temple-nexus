@@ -882,7 +882,7 @@ export const ParentExistsForm = ({
                       </CardContent>
                     </Card>
 
-                    {/* Skip Reasons Expanded */}
+                    {/* Skip Reason Text Input */}
                     <AnimatePresence>
                       {showSkipReasons && (
                         <motion.div
@@ -891,88 +891,35 @@ export const ParentExistsForm = ({
                           exit={{ opacity: 0, height: 0 }}
                           className="overflow-hidden"
                         >
-                          <div className="pl-4 border-l-2 border-muted ml-6 space-y-2">
-                            <p className="text-sm text-muted-foreground py-2">
-                              {t.selectReason}
-                            </p>
-                            {skipReasons.map((reason) => {
-                              const Icon = reason.icon;
-                              const isOtherReason = (reason as any).isOther;
-                              return (
-                                <div key={reason.id}>
-                                  <Card
-                                    className={`cursor-pointer border transition-all hover:border-primary hover:bg-accent ${showOtherInput && isOtherReason ? 'border-primary bg-accent' : ''}`}
-                                    onClick={() => {
-                                      if (isOtherReason) {
-                                        setShowOtherInput(true);
-                                        setSelectedSkipReason(reason.id);
-                                      } else {
-                                        setSelectedSkipReason(reason.id);
-                                        setShowOtherInput(false);
-                                        // Auto-skip immediately after selection with reason
-                                        setTimeout(() => {
-                                          if (onSkip) onSkip(reason.id);
-                                        }, 150);
-                                      }
-                                    }}
-                                  >
-                                    <CardContent className="flex items-center gap-3 p-3">
-                                      <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-muted">
-                                        <Icon className="w-4 h-4 text-muted-foreground" />
-                                      </div>
-                                      <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium">
-                                          {reason.label}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {reason.description}
-                                        </p>
-                                      </div>
-                                      <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                                    </CardContent>
-                                  </Card>
-                                  
-                                  {/* Other reason text input */}
-                                  {isOtherReason && showOtherInput && (
-                                    <motion.div
-                                      initial={{ opacity: 0, height: 0 }}
-                                      animate={{ opacity: 1, height: "auto" }}
-                                      exit={{ opacity: 0, height: 0 }}
-                                      className="mt-2 space-y-2"
-                                    >
-                                      <Label className="text-sm text-muted-foreground">
-                                        {t.enterOtherReason}
-                                      </Label>
-                                      <Textarea
-                                        value={customOtherReason}
-                                        onChange={(e) => setCustomOtherReason(e.target.value)}
-                                        placeholder={t.otherReasonPlaceholder}
-                                        className="min-h-[80px] resize-none"
-                                        maxLength={200}
-                                      />
-                                      <div className="flex justify-between items-center">
-                                        <span className="text-xs text-muted-foreground">
-                                          {customOtherReason.length}/200
-                                        </span>
-                                        <Button
-                                          size="sm"
-                                          disabled={!customOtherReason.trim()}
-                                          onClick={() => {
-                                            if (onSkip && customOtherReason.trim()) {
-                                              onSkip(`other: ${customOtherReason.trim()}`);
-                                              setCustomOtherReason("");
-                                              setShowOtherInput(false);
-                                            }
-                                          }}
-                                        >
-                                          {t.submitReason}
-                                        </Button>
-                                      </div>
-                                    </motion.div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                          <div className="pl-4 border-l-2 border-muted ml-6 space-y-3 py-3">
+                            <Label className="text-sm text-muted-foreground">
+                              {t.enterOtherReason}
+                            </Label>
+                            <Textarea
+                              value={customOtherReason}
+                              onChange={(e) => setCustomOtherReason(e.target.value)}
+                              placeholder={t.otherReasonPlaceholder}
+                              className="min-h-[80px] resize-none"
+                              maxLength={200}
+                            />
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-muted-foreground">
+                                {customOtherReason.length}/200
+                              </span>
+                              <Button
+                                size="sm"
+                                disabled={!customOtherReason.trim()}
+                                onClick={() => {
+                                  if (onSkip && customOtherReason.trim()) {
+                                    onSkip(customOtherReason.trim());
+                                    setCustomOtherReason("");
+                                    setShowSkipReasons(false);
+                                  }
+                                }}
+                              >
+                                {t.submitReason}
+                              </Button>
+                            </div>
                           </div>
                         </motion.div>
                       )}

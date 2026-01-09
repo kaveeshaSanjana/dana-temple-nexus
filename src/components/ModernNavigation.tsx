@@ -3,6 +3,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/s
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { LogIn, Menu, Home } from "lucide-react";
 import { useState } from "react";
+import surakshaLogo from "@/assets/logos/surakshalms-logo.png";
 
 const ModernNavigation = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -29,7 +30,7 @@ const ModernNavigation = () => {
             {/* Logo */}
             <div className="flex items-center gap-3">
               <div className="relative">
-                <img src="/assets/logos/surakshalms-logo.png" alt="SurakshaLMS Logo" className="h-10 w-10 rounded-xl shadow-lg" />
+                <img src={surakshaLogo} alt="SurakshaLMS Logo" className="h-10 w-10 rounded-xl shadow-lg" />
                 <div className="absolute -inset-1 bg-gradient-to-r from-primary/20 to-primary-light/20 rounded-xl blur opacity-75"></div>
               </div>
               <span className="font-bold text-xl bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent">

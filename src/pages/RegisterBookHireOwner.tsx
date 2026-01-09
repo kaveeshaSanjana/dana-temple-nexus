@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { BookOpen, Mail, Phone, MapPin, Building2, AlertCircle } from "lucide-react";
 import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { EmailHelpSection } from "@/components/EmailHelpSection";
 
 const RegisterBookHireOwner = () => {
   const [formData, setFormData] = useState({
@@ -89,6 +90,7 @@ const RegisterBookHireOwner = () => {
                       className="bg-background/50 border-border/50"
                       placeholder="owner@example.com"
                     />
+                    <EmailHelpSection />
                   </div>
                   
                   <div className="space-y-2">
