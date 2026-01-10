@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import MUITable from '@/components/ui/mui-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,57 +6,93 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { getImageUrl } from '@/utils/imageUrlHelper';
-import { RefreshCw, Filter, Eye, Edit, Trash2, Plus, BookOpen, AlertCircle, Power, PowerOff } from 'lucide-react';
+import { RefreshCw, Filter, Eye, Edit, Trash2, Plus, BookOpen, AlertCircle, Power, PowerOff, UserPlus, UserMinus, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInstituteRole } from '@/hooks/useInstituteRole';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import CreateSubjectForm from '@/components/forms/CreateSubjectForm';
-import { useTableData } from '@/hooks/useTableData';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { subjectsApi, SUBJECT_TYPE_OPTIONS, BASKET_CATEGORY_OPTIONS, type Subject } from '@/api/subjects.api';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useParams } from 'react-router-dom';
+import { instituteApi } from '@/api/institute.api';
+import { TeacherAutocomplete } from '@/components/ui/teacher-autocomplete';
+
+interface ClassSubject {
+  id: string;
+  subjectId: string;
+  classId: string;
+  instituteId: string;
+  isActive: boolean;
+  defaultTeacherId?: string | null;
+  subject?: {
+    id: string;
+    code: string;
+    name: string;
+    category?: string;
+    creditHours?: number;
+    subjectType?: string;
+    basketCategory?: string;
+    imgUrl?: string;
+    isActive: boolean;
+  };
+  teacher?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    name?: string;
+    email?: string;
+    imageUrl?: string;
+  } | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 /**
- * Institute Subjects Management Page
+ * Institute Subjects Management Page (Class Context)
  * 
- * This page allows Institute Admins to:
- * ✅ View all subjects for their institute
- * ✅ Create new subjects
- * ✅ Update existing subjects
- * ✅ Soft delete (deactivate) subjects
- * 
- * Teachers can only:
- * ✅ View subjects (READ ONLY)
- * 
- * Note: Only SUPERADMIN can permanently delete subjects
+ * After selecting a class, this page shows:
+ * ✅ All subjects assigned to the selected class
+ * ✅ Teachers assigned to each subject
+ * ✅ Ability to assign/unassign teachers
+ * ✅ Activate/Deactivate subject-class assignments
  */
 const InstituteSubjects = () => {
+  const { classId } = useParams();
   const {
     user,
     selectedInstitute,
-    currentInstituteId
+    currentInstituteId,
+    selectedClass
   } = useAuth();
   const { toast } = useToast();
   const userRole = useInstituteRole();
   
+  // Data states
+  const [classSubjects, setClassSubjects] = useState<ClassSubject[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
   // Dialog states
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
-  const [selectedSubjectData, setSelectedSubjectData] = useState<Subject | null>(null);
+  const [isAssignTeacherDialogOpen, setIsAssignTeacherDialogOpen] = useState(false);
+  const [selectedSubjectForTeacher, setSelectedSubjectForTeacher] = useState<ClassSubject | null>(null);
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
+  const [isAssigningTeacher, setIsAssigningTeacher] = useState(false);
+  
+  const [showUnassignConfirm, setShowUnassignConfirm] = useState(false);
+  const [subjectToUnassign, setSubjectToUnassign] = useState<ClassSubject | null>(null);
+  const [isUnassigning, setIsUnassigning] = useState(false);
+  
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(false);
-  const [subjectToDeactivate, setSubjectToDeactivate] = useState<Subject | null>(null);
+  const [subjectToDeactivate, setSubjectToDeactivate] = useState<ClassSubject | null>(null);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [selectedSubjectData, setSelectedSubjectData] = useState<ClassSubject | null>(null);
   
   // Filter states
   const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('active');
-  const [categoryFilter, setCategoryFilter] = useState('all');
-  const [subjectTypeFilter, setSubjectTypeFilter] = useState('all');
-  const [basketCategoryFilter, setBasketCategoryFilter] = useState('all');
 
   // Image preview state
   const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
@@ -64,142 +100,185 @@ const InstituteSubjects = () => {
   // Permission checks
   const isInstituteAdmin = userRole === 'InstituteAdmin';
   const isSuperAdmin = user?.role === 'SystemAdmin';
-  const isTeacher = userRole === 'Teacher';
-  const canCreate = isInstituteAdmin || isSuperAdmin;
-  const canEdit = isInstituteAdmin || isSuperAdmin;
+  const canManageTeachers = isInstituteAdmin || isSuperAdmin;
   const canDeactivate = isInstituteAdmin || isSuperAdmin;
-  const canPermanentDelete = isSuperAdmin; // Only SUPERADMIN
 
-  // Fetch subjects using useTableData hook
-  const tableData = useTableData<Subject>({
-    endpoint: '/subjects',
-    defaultParams: {
-      instituteId: currentInstituteId,
-      ...(statusFilter !== 'all' && { isActive: statusFilter === 'active' }),
-      ...(searchTerm && { search: searchTerm }),
-      ...(categoryFilter !== 'all' && { category: categoryFilter }),
-      ...(subjectTypeFilter !== 'all' && { subjectType: subjectTypeFilter }),
-      ...(basketCategoryFilter !== 'all' && { basketCategory: basketCategoryFilter }),
-    },
-    cacheOptions: {
-      ttl: 20,
-      userId: user?.id,
-      role: userRole || 'User',
-      instituteId: currentInstituteId || undefined
-    },
-    dependencies: [currentInstituteId, statusFilter, searchTerm, categoryFilter, subjectTypeFilter, basketCategoryFilter],
-    pagination: {
-      defaultLimit: 50,
-      availableLimits: [25, 50, 100]
-    },
-    autoLoad: !!currentInstituteId,
-  });
+  // Use classId from URL params or from selectedClass
+  const currentClassId = classId || selectedClass?.id;
 
-  const {
-    state: { data: subjectsData, loading: isLoading },
-    pagination,
-    actions
-  } = tableData;
+  // Fetch class subjects
+  const fetchClassSubjects = async (forceRefresh = false) => {
+    if (!currentInstituteId || !currentClassId) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await instituteApi.getClassSubjects(
+        currentInstituteId, 
+        currentClassId, 
+        { userId: user?.id, role: userRole || 'User' },
+        forceRefresh
+      );
+      
+      // Handle response - it may be wrapped in data property
+      const subjectsData = Array.isArray(response) ? response : (response as any)?.data || [];
+      setClassSubjects(subjectsData);
+    } catch (error: any) {
+      console.error('Error fetching class subjects:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to load class subjects",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (currentInstituteId && currentClassId) {
+      fetchClassSubjects();
+    }
+  }, [currentInstituteId, currentClassId]);
 
   const resolveImageUrl = (url?: string | null) => {
     if (!url) return '/placeholder.svg';
     return getImageUrl(url);
   };
 
-  // Handle deactivate subject
-  const handleDeactivateClick = (subject: Subject) => {
-    setSubjectToDeactivate(subject);
-    setShowDeactivateConfirm(true);
+  // Filter subjects based on search and status
+  const filteredSubjects = classSubjects.filter(cs => {
+    const subject = cs.subject;
+    const matchesSearch = !searchTerm || 
+      subject?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      subject?.code?.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesStatus = statusFilter === 'all' || 
+      (statusFilter === 'active' && cs.isActive) ||
+      (statusFilter === 'inactive' && !cs.isActive);
+    
+    return matchesSearch && matchesStatus;
+  });
+
+  // Assign teacher handler
+  const handleAssignTeacherClick = (cs: ClassSubject) => {
+    setSelectedSubjectForTeacher(cs);
+    setSelectedTeacherId(cs.defaultTeacherId || '');
+    setIsAssignTeacherDialogOpen(true);
   };
 
-  const confirmDeactivate = async () => {
-    if (!subjectToDeactivate || isDeactivating) return;
+  const confirmAssignTeacher = async () => {
+    if (!selectedSubjectForTeacher || !currentInstituteId || !currentClassId || isAssigningTeacher) return;
+    
+    if (!selectedTeacherId) {
+      toast({
+        title: "Error",
+        description: "Please select a teacher",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
-      setIsDeactivating(true);
-      await subjectsApi.deactivate(subjectToDeactivate.id, currentInstituteId || undefined);
+      setIsAssigningTeacher(true);
+      await instituteApi.assignTeacherToSubject(
+        currentInstituteId,
+        currentClassId,
+        selectedSubjectForTeacher.subjectId,
+        selectedTeacherId
+      );
+      
       toast({
-        title: "Subject Deactivated",
-        description: `${subjectToDeactivate.name} has been deactivated successfully.`
+        title: "Teacher Assigned",
+        description: `Teacher has been assigned to ${selectedSubjectForTeacher.subject?.name}`
       });
-      setShowDeactivateConfirm(false);
-      setSubjectToDeactivate(null);
-      actions.refresh();
+      
+      setIsAssignTeacherDialogOpen(false);
+      setSelectedSubjectForTeacher(null);
+      setSelectedTeacherId('');
+      fetchClassSubjects(true);
     } catch (error: any) {
-      console.error('Error deactivating subject:', error);
+      console.error('Error assigning teacher:', error);
       toast({
-        title: "Deactivation Failed",
-        description: error?.message || "Failed to deactivate subject",
+        title: "Assignment Failed",
+        description: error?.message || "Failed to assign teacher",
         variant: "destructive"
       });
     } finally {
-      setIsDeactivating(false);
+      setIsAssigningTeacher(false);
     }
   };
 
-  // Handle reactivate subject
-  const handleReactivate = async (subject: Subject) => {
+  // Unassign teacher handler
+  const handleUnassignTeacherClick = (cs: ClassSubject) => {
+    setSubjectToUnassign(cs);
+    setShowUnassignConfirm(true);
+  };
+
+  const confirmUnassignTeacher = async () => {
+    if (!subjectToUnassign || !currentInstituteId || !currentClassId || isUnassigning) return;
+
     try {
-      await subjectsApi.update(subject.id, { isActive: true }, currentInstituteId || undefined);
+      setIsUnassigning(true);
+      await instituteApi.unassignTeacherFromSubject(
+        currentInstituteId,
+        currentClassId,
+        subjectToUnassign.subjectId
+      );
+      
       toast({
-        title: "Subject Activated",
-        description: `${subject.name} has been activated successfully.`
+        title: "Teacher Unassigned",
+        description: `Teacher has been removed from ${subjectToUnassign.subject?.name}`
       });
-      actions.refresh();
+      
+      setShowUnassignConfirm(false);
+      setSubjectToUnassign(null);
+      fetchClassSubjects(true);
     } catch (error: any) {
-      console.error('Error reactivating subject:', error);
+      console.error('Error unassigning teacher:', error);
       toast({
-        title: "Activation Failed",
-        description: error?.message || "Failed to activate subject",
+        title: "Unassignment Failed",
+        description: error?.message || "Failed to unassign teacher",
         variant: "destructive"
       });
+    } finally {
+      setIsUnassigning(false);
     }
   };
 
-  // Handle view subject
-  const handleViewSubject = (subject: Subject) => {
-    setSelectedSubjectData(subject);
+  // View subject details
+  const handleViewSubject = (cs: ClassSubject) => {
+    setSelectedSubjectData(cs);
     setIsViewDialogOpen(true);
   };
 
-  // Handle edit subject
-  const handleEditSubject = (subject: Subject) => {
-    setSelectedSubjectData(subject);
-    setIsEditDialogOpen(true);
-  };
-
-  // Handle create success
-  const handleCreateSuccess = () => {
-    setIsCreateDialogOpen(false);
-    actions.refresh();
-  };
-
-  // Handle update success
-  const handleUpdateSuccess = () => {
-    setIsEditDialogOpen(false);
-    setSelectedSubjectData(null);
-    actions.refresh();
+  // Get teacher display name
+  const getTeacherDisplayName = (teacher: ClassSubject['teacher']) => {
+    if (!teacher) return null;
+    if (teacher.firstName || teacher.lastName) {
+      return `${teacher.firstName || ''} ${teacher.lastName || ''}`.trim();
+    }
+    return teacher.name || teacher.email || 'Unknown Teacher';
   };
 
   // Table columns
-  const subjectsColumns = [
+  const classSubjectsColumns = [
     {
       id: 'imgUrl',
       key: 'imgUrl',
       header: 'Image',
-      format: (value: string | null, row: Subject) => (
+      format: (_: any, row: ClassSubject) => (
         <div 
           className="w-14 h-14 rounded-lg overflow-hidden bg-muted cursor-pointer hover:ring-2 hover:ring-primary transition-all"
           onClick={() => {
-            const imgUrl = row?.imgUrl || value;
+            const imgUrl = row.subject?.imgUrl;
             if (imgUrl) {
-              setPreviewImage({ url: resolveImageUrl(imgUrl), title: `${row?.name || 'Subject'} - Image` });
+              setPreviewImage({ url: resolveImageUrl(imgUrl), title: `${row.subject?.name || 'Subject'} - Image` });
             }
           }}
         >
           <img
-            src={resolveImageUrl(row?.imgUrl || value)}
-            alt={row?.name ? `Subject ${row.name}` : 'Subject image'}
+            src={resolveImageUrl(row.subject?.imgUrl)}
+            alt={row.subject?.name ? `Subject ${row.subject.name}` : 'Subject image'}
             className="w-full h-full object-cover"
             onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/placeholder.svg'; }}
           />
@@ -209,71 +288,70 @@ const InstituteSubjects = () => {
     {
       key: 'code',
       header: 'Code',
-      format: (value: string) => (
-        <span className="font-mono text-sm font-medium">{value}</span>
+      format: (_: any, row: ClassSubject) => (
+        <span className="font-mono text-sm font-medium">{row.subject?.code || 'N/A'}</span>
       )
     },
     {
       key: 'name',
-      header: 'Name',
-      format: (value: string | null) => value || <span className="text-muted-foreground italic">No name</span>
+      header: 'Subject Name',
+      format: (_: any, row: ClassSubject) => row.subject?.name || <span className="text-muted-foreground italic">No name</span>
     },
     {
       key: 'category',
       header: 'Category',
-      format: (value: string | null) => value ? (
-        <Badge variant="outline">{value}</Badge>
+      format: (_: any, row: ClassSubject) => row.subject?.category ? (
+        <Badge variant="outline">{row.subject.category}</Badge>
       ) : (
         <span className="text-muted-foreground italic">N/A</span>
       )
     },
     {
-      key: 'creditHours',
-      header: 'Credits',
-      format: (value: number | null) => value !== null && value !== undefined ? value : <span className="text-muted-foreground italic">—</span>
-    },
-    {
-      key: 'subjectType',
-      header: 'Type',
-      format: (value: string | null) => {
-        if (!value) return <span className="text-muted-foreground italic">N/A</span>;
-        const option = SUBJECT_TYPE_OPTIONS.find(o => o.value === value);
-        const isBasket = value.includes('BASKET');
-        return (
-          <Badge variant={isBasket ? 'outline' : 'secondary'} className={isBasket ? 'border-purple-500 text-purple-700 dark:text-purple-300' : ''}>
-            {option?.label || value}
-          </Badge>
-        );
-      }
-    },
-    {
-      key: 'basketCategory',
-      header: 'Basket',
-      format: (value: string | null, row: Subject) => {
-        if (!value || !row.subjectType?.includes('BASKET')) {
-          return <span className="text-muted-foreground italic">—</span>;
+      key: 'teacher',
+      header: 'Assigned Teacher',
+      format: (_: any, row: ClassSubject) => {
+        const teacher = row.teacher;
+        if (!teacher) {
+          return (
+            <span className="text-muted-foreground italic flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              No teacher assigned
+            </span>
+          );
         }
-        const option = BASKET_CATEGORY_OPTIONS.find(o => o.value === value);
+        
+        const displayName = getTeacherDisplayName(teacher);
         return (
-          <Badge variant="outline" className="border-blue-500 text-blue-700 dark:text-blue-300">
-            {option?.label || value}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={resolveImageUrl(teacher.imageUrl)} />
+              <AvatarFallback className="text-xs">
+                {displayName?.charAt(0)?.toUpperCase() || 'T'}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <p className="text-sm font-medium">{displayName}</p>
+              {teacher.email && (
+                <p className="text-xs text-muted-foreground">{teacher.email}</p>
+              )}
+            </div>
+          </div>
         );
       }
     },
     {
       key: 'isActive',
       header: 'Status',
-      format: (value: boolean) => (
-        <Badge variant={value ? 'default' : 'secondary'} className={value ? 'bg-green-600' : 'bg-gray-500'}>
-          {value ? 'Active' : 'Inactive'}
+      format: (_: any, row: ClassSubject) => (
+        <Badge variant={row.isActive ? 'default' : 'secondary'} className={row.isActive ? 'bg-green-600' : 'bg-gray-500'}>
+          {row.isActive ? 'Active' : 'Inactive'}
         </Badge>
       )
     },
     {
       key: 'actions',
       header: 'Actions',
-      format: (_: any, row: Subject) => (
+      format: (_: any, row: ClassSubject) => (
         <div className="flex items-center gap-1">
           <Button
             variant="ghost"
@@ -284,44 +362,65 @@ const InstituteSubjects = () => {
             <Eye className="h-4 w-4" />
           </Button>
           
-          {canEdit && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleEditSubject(row)}
-              title="Edit subject"
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-          )}
-          
-          {canDeactivate && row.isActive && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleDeactivateClick(row)}
-              className="text-orange-600 hover:text-orange-700"
-              title="Deactivate subject"
-            >
-              <PowerOff className="h-4 w-4" />
-            </Button>
-          )}
-          
-          {canDeactivate && !row.isActive && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => handleReactivate(row)}
-              className="text-green-600 hover:text-green-700"
-              title="Activate subject"
-            >
-              <Power className="h-4 w-4" />
-            </Button>
+          {canManageTeachers && (
+            <>
+              {!row.teacher ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleAssignTeacherClick(row)}
+                  className="text-blue-600 hover:text-blue-700"
+                  title="Assign teacher"
+                >
+                  <UserPlus className="h-4 w-4" />
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleAssignTeacherClick(row)}
+                    className="text-blue-600 hover:text-blue-700"
+                    title="Change teacher"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleUnassignTeacherClick(row)}
+                    className="text-red-600 hover:text-red-700"
+                    title="Remove teacher"
+                  >
+                    <UserMinus className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+            </>
           )}
         </div>
       )
     }
   ];
+
+  // Show message if no class selected
+  if (!currentClassId) {
+    return (
+      <div className="p-6 space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-yellow-500" />
+              No Class Selected
+            </CardTitle>
+            <CardDescription>
+              Please select a class from the classes section to view and manage class subjects.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+    );
+  }
 
   // Show message if no institute selected
   if (!currentInstituteId) {
@@ -349,10 +448,12 @@ const InstituteSubjects = () => {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <BookOpen className="h-6 w-6" />
-            Institute Subjects
+            Class Subjects
           </h1>
           <p className="text-muted-foreground mt-1">
-            {selectedInstitute?.name ? `Manage subjects for ${selectedInstitute.name}` : 'Manage academic subjects'}
+            {selectedClass?.name 
+              ? `Manage subjects for ${selectedClass.name}` 
+              : 'Manage subjects and teacher assignments for this class'}
           </p>
         </div>
         
@@ -369,40 +470,29 @@ const InstituteSubjects = () => {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => actions.refresh()} 
+            onClick={() => fetchClassSubjects(true)} 
             disabled={isLoading}
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          
-          {canCreate && (
-            <Button 
-              onClick={() => setIsCreateDialogOpen(true)}
-              className="bg-primary hover:bg-primary/90"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Subject
-            </Button>
-          )}
         </div>
       </div>
 
-      {/* Role-based info alert */}
-      {isTeacher && (
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            As a Teacher, you have <strong>view-only</strong> access to subjects. Contact your Institute Admin to create or modify subjects.
-          </AlertDescription>
-        </Alert>
-      )}
+      {/* Info about class context */}
+      <Alert>
+        <BookOpen className="h-4 w-4" />
+        <AlertDescription>
+          Showing subjects assigned to <strong>{selectedClass?.name || 'this class'}</strong>. 
+          You can manage teacher assignments for each subject.
+        </AlertDescription>
+      </Alert>
 
       {/* Filters */}
       {showFilters && (
         <Card>
           <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium mb-1 block">Search</label>
                 <Input 
@@ -425,60 +515,6 @@ const InstituteSubjects = () => {
                   </SelectContent>
                 </Select>
               </div>
-
-              <div>
-                <label className="text-sm font-medium mb-1 block">Category</label>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="Science">Science</SelectItem>
-                    <SelectItem value="Mathematics">Mathematics</SelectItem>
-                    <SelectItem value="Languages">Languages</SelectItem>
-                    <SelectItem value="Arts">Arts</SelectItem>
-                    <SelectItem value="Commerce">Commerce</SelectItem>
-                    <SelectItem value="Technology">Technology</SelectItem>
-                    <SelectItem value="Humanities">Humanities</SelectItem>
-                    <SelectItem value="Religion">Religion</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-1 block">Subject Type</label>
-                <Select value={subjectTypeFilter} onValueChange={setSubjectTypeFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {SUBJECT_TYPE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <label className="text-sm font-medium mb-1 block">Basket Category</label>
-                <Select value={basketCategoryFilter} onValueChange={setBasketCategoryFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Basket" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Baskets</SelectItem>
-                    {BASKET_CATEGORY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -488,32 +524,32 @@ const InstituteSubjects = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold">{subjectsData.length}</div>
+            <div className="text-2xl font-bold">{filteredSubjects.length}</div>
             <p className="text-sm text-muted-foreground">Total Subjects</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-2xl font-bold text-green-600">
-              {subjectsData.filter(s => s.isActive).length}
+              {filteredSubjects.filter(s => s.isActive).length}
             </div>
             <p className="text-sm text-muted-foreground">Active</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-gray-500">
-              {subjectsData.filter(s => !s.isActive).length}
+            <div className="text-2xl font-bold text-blue-600">
+              {filteredSubjects.filter(s => s.teacher).length}
             </div>
-            <p className="text-sm text-muted-foreground">Inactive</p>
+            <p className="text-sm text-muted-foreground">With Teacher</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <div className="text-2xl font-bold text-purple-600">
-              {subjectsData.filter(s => s.subjectType?.includes('BASKET')).length}
+            <div className="text-2xl font-bold text-orange-600">
+              {filteredSubjects.filter(s => !s.teacher).length}
             </div>
-            <p className="text-sm text-muted-foreground">Basket Subjects</p>
+            <p className="text-sm text-muted-foreground">No Teacher</p>
           </CardContent>
         </Card>
       </div>
@@ -521,58 +557,103 @@ const InstituteSubjects = () => {
       {/* Subjects Table */}
       <div className="w-full overflow-x-auto">
         <MUITable
-          title="Subjects"
-          data={subjectsData || []}
-          columns={subjectsColumns.map(col => ({
+          title="Class Subjects"
+          data={filteredSubjects}
+          columns={classSubjectsColumns.map(col => ({
             id: col.key,
             label: col.header,
-            minWidth: col.key === 'actions' ? 150 : 120,
+            minWidth: col.key === 'actions' ? 150 : col.key === 'teacher' ? 200 : 120,
             format: col.format
           }))}
-          page={pagination.page}
-          rowsPerPage={pagination.limit}
-          totalCount={pagination.totalCount}
-          onPageChange={(newPage: number) => actions.setPage(newPage)}
-          onRowsPerPageChange={(newLimit: number) => actions.setLimit(newLimit)}
+          page={0}
+          rowsPerPage={50}
+          totalCount={filteredSubjects.length}
+          onPageChange={() => {}}
+          onRowsPerPageChange={() => {}}
           sectionType="subjects"
         />
       </div>
 
-      {/* Create Subject Dialog */}
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      {/* Assign Teacher Dialog */}
+      <Dialog open={isAssignTeacherDialogOpen} onOpenChange={setIsAssignTeacherDialogOpen}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Create New Subject</DialogTitle>
+            <DialogTitle>
+              {selectedSubjectForTeacher?.teacher ? 'Change Teacher' : 'Assign Teacher'}
+            </DialogTitle>
             <DialogDescription>
-              Add a new subject to {selectedInstitute?.name || 'this institute'}
+              {selectedSubjectForTeacher?.teacher 
+                ? `Update the teacher for ${selectedSubjectForTeacher?.subject?.name}`
+                : `Assign a teacher to ${selectedSubjectForTeacher?.subject?.name}`
+              }
             </DialogDescription>
           </DialogHeader>
-          <CreateSubjectForm 
-            onSubmit={handleCreateSuccess} 
-            onCancel={() => setIsCreateDialogOpen(false)} 
-          />
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">Select Teacher</label>
+              <TeacherAutocomplete
+                value={selectedTeacherId}
+                onChange={setSelectedTeacherId}
+                placeholder="Search and select a teacher..."
+              />
+            </div>
+            
+            {selectedSubjectForTeacher?.teacher && (
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground mb-2">Currently assigned:</p>
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={resolveImageUrl(selectedSubjectForTeacher.teacher.imageUrl)} />
+                    <AvatarFallback className="text-xs">
+                      {getTeacherDisplayName(selectedSubjectForTeacher.teacher)?.charAt(0)?.toUpperCase() || 'T'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium">
+                    {getTeacherDisplayName(selectedSubjectForTeacher.teacher)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsAssignTeacherDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={confirmAssignTeacher} 
+              disabled={isAssigningTeacher || !selectedTeacherId}
+            >
+              {isAssigningTeacher ? 'Assigning...' : 'Assign Teacher'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Edit Subject Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Subject</DialogTitle>
-            <DialogDescription>
-              Update subject information
-            </DialogDescription>
-          </DialogHeader>
-          <CreateSubjectForm 
-            initialData={selectedSubjectData}
-            onSubmit={handleUpdateSuccess} 
-            onCancel={() => {
-              setIsEditDialogOpen(false);
-              setSelectedSubjectData(null);
-            }} 
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Unassign Teacher Confirmation */}
+      <AlertDialog open={showUnassignConfirm} onOpenChange={(open) => !isUnassigning && setShowUnassignConfirm(open)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Teacher Assignment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to remove the teacher from <strong>{subjectToUnassign?.subject?.name}</strong>?
+              <br /><br />
+              This will unassign {getTeacherDisplayName(subjectToUnassign?.teacher)} from this subject.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isUnassigning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmUnassignTeacher}
+              disabled={isUnassigning}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isUnassigning ? 'Removing...' : 'Remove Teacher'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* View Subject Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
@@ -585,15 +666,15 @@ const InstituteSubjects = () => {
               <div className="flex items-start gap-4">
                 <div className="w-24 h-24 rounded-lg overflow-hidden bg-muted">
                   <img
-                    src={resolveImageUrl(selectedSubjectData.imgUrl)}
-                    alt={selectedSubjectData.name}
+                    src={resolveImageUrl(selectedSubjectData.subject?.imgUrl)}
+                    alt={selectedSubjectData.subject?.name}
                     className="w-full h-full object-cover"
                     onError={(e) => { (e.currentTarget as HTMLImageElement).src = '/placeholder.svg'; }}
                   />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold">{selectedSubjectData.name}</h3>
-                  <p className="text-sm font-mono text-muted-foreground">{selectedSubjectData.code}</p>
+                  <h3 className="text-lg font-semibold">{selectedSubjectData.subject?.name}</h3>
+                  <p className="text-sm font-mono text-muted-foreground">{selectedSubjectData.subject?.code}</p>
                   <Badge variant={selectedSubjectData.isActive ? 'default' : 'secondary'} className="mt-2">
                     {selectedSubjectData.isActive ? 'Active' : 'Inactive'}
                   </Badge>
@@ -603,47 +684,56 @@ const InstituteSubjects = () => {
               <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                 <div>
                   <label className="text-sm text-muted-foreground">Category</label>
-                  <p className="font-medium">{selectedSubjectData.category || 'N/A'}</p>
+                  <p className="font-medium">{selectedSubjectData.subject?.category || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Credit Hours</label>
-                  <p className="font-medium">{selectedSubjectData.creditHours || 'N/A'}</p>
+                  <p className="font-medium">{selectedSubjectData.subject?.creditHours || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Subject Type</label>
-                  <p className="font-medium">
-                    {SUBJECT_TYPE_OPTIONS.find(o => o.value === selectedSubjectData.subjectType)?.label || selectedSubjectData.subjectType}
-                  </p>
+                  <p className="font-medium">{selectedSubjectData.subject?.subjectType || 'N/A'}</p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground">Basket Category</label>
-                  <p className="font-medium">
-                    {selectedSubjectData.basketCategory 
-                      ? BASKET_CATEGORY_OPTIONS.find(o => o.value === selectedSubjectData.basketCategory)?.label || selectedSubjectData.basketCategory
-                      : 'N/A'
-                    }
-                  </p>
+                  <p className="font-medium">{selectedSubjectData.subject?.basketCategory || 'N/A'}</p>
                 </div>
               </div>
               
-              {selectedSubjectData.description && (
-                <div className="pt-4 border-t">
-                  <label className="text-sm text-muted-foreground">Description</label>
-                  <p className="mt-1">{selectedSubjectData.description}</p>
-                </div>
-              )}
+              {/* Teacher Info */}
+              <div className="pt-4 border-t">
+                <label className="text-sm text-muted-foreground mb-2 block">Assigned Teacher</label>
+                {selectedSubjectData.teacher ? (
+                  <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={resolveImageUrl(selectedSubjectData.teacher.imageUrl)} />
+                      <AvatarFallback>
+                        {getTeacherDisplayName(selectedSubjectData.teacher)?.charAt(0)?.toUpperCase() || 'T'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{getTeacherDisplayName(selectedSubjectData.teacher)}</p>
+                      {selectedSubjectData.teacher.email && (
+                        <p className="text-sm text-muted-foreground">{selectedSubjectData.teacher.email}</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground italic">No teacher assigned</p>
+                )}
+              </div>
               
               <div className="flex justify-end gap-2 pt-4 border-t">
-                {canEdit && (
+                {canManageTeachers && (
                   <Button
                     variant="outline"
                     onClick={() => {
                       setIsViewDialogOpen(false);
-                      handleEditSubject(selectedSubjectData);
+                      handleAssignTeacherClick(selectedSubjectData);
                     }}
                   >
-                    <Edit className="h-4 w-4 mr-2" />
-                    Edit
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    {selectedSubjectData.teacher ? 'Change Teacher' : 'Assign Teacher'}
                   </Button>
                 )}
                 <Button variant="secondary" onClick={() => setIsViewDialogOpen(false)}>
@@ -654,30 +744,6 @@ const InstituteSubjects = () => {
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Deactivate Confirmation Dialog */}
-      <AlertDialog open={showDeactivateConfirm} onOpenChange={(open) => !isDeactivating && setShowDeactivateConfirm(open)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate Subject</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to deactivate <strong>{subjectToDeactivate?.name}</strong>?
-              <br /><br />
-              This will hide the subject from regular views but will not delete it. You can reactivate it later.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeactivating}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeactivate}
-              disabled={isDeactivating}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              {isDeactivating ? 'Deactivating...' : 'Deactivate'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Image Preview Dialog */}
       <Dialog open={!!previewImage} onOpenChange={() => setPreviewImage(null)}>
