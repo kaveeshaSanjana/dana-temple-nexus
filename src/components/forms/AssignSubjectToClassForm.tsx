@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { TeacherAutocomplete } from '@/components/ui/teacher-autocomplete';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInstituteRole } from '@/hooks/useInstituteRole';
 import { useToast } from '@/hooks/use-toast';
@@ -395,13 +396,11 @@ const AssignSubjectToClassForm: React.FC<AssignSubjectToClassFormProps> = ({
             )}
 
             <div>
-              <Label htmlFor="teacher-id">Default Teacher ID (Optional)</Label>
-              <Input
-                id="teacher-id"
-                type="text"
+              <Label htmlFor="teacher-id">Default Teacher (Optional)</Label>
+              <TeacherAutocomplete
                 value={defaultTeacherId}
-                onChange={(e) => setDefaultTeacherId(e.target.value)}
-                placeholder="Enter teacher ID or leave empty"
+                onChange={(teacherId) => setDefaultTeacherId(teacherId)}
+                placeholder="Search teacher by name..."
               />
             </div>
 
