@@ -4,16 +4,22 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataCardView } from '@/components/ui/data-card-view';
 import { useAuth, type UserRole } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { getImageUrl } from '@/utils/imageUrlHelper';
-import { BookOpen, Clock, CheckCircle, RefreshCw, User, School, ChevronLeft, ChevronRight } from 'lucide-react';
+import { BookOpen, Clock, CheckCircle, RefreshCw, User, School, ChevronLeft, ChevronRight, LogIn } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { getBaseUrl } from '@/contexts/utils/auth.api';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { instituteApi } from '@/api/institute.api';
 import { useApiRequest } from '@/hooks/useApiRequest';
 import { useInstituteRole } from '@/hooks/useInstituteRole';
 import { enhancedCachedClient } from '@/api/enhancedCachedClient';
 import { CACHE_TTL } from '@/config/cacheTTL';
 import { useAppNavigation } from '@/hooks/useAppNavigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ChildCurrentSelection from '@/components/ChildCurrentSelection';
 interface Subject {
   id: string;
   name: string;
@@ -59,6 +65,7 @@ interface SubjectCardData {
   imgUrl?: string;
   createdAt: string;
   updatedAt: string;
+  enrollmentStatus?: 'VERIFIED' | 'PENDING' | 'NONE';
 }
 const SubjectSelector = () => {
   const {
@@ -67,8 +74,11 @@ const SubjectSelector = () => {
     selectedClass,
     setSelectedSubject,
     currentInstituteId,
-    currentClassId
+    currentClassId,
+    isViewingAsParent,
+    selectedChild
   } = useAuth();
+  const navigate = useNavigate();
   const instituteRole = useInstituteRole();
   const { navigateToPage } = useAppNavigation();
   const {
@@ -78,6 +88,14 @@ const SubjectSelector = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [expandedSubjectId, setExpandedSubjectId] = useState<string | null>(null);
+
+  // Enrollment state
+  const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
+  const [enrollSubject, setEnrollSubject] = useState<SubjectCardData | null>(null);
+  const [enrollmentKey, setEnrollmentKey] = useState('');
+  const [isEnrolling, setIsEnrolling] = useState(false);
+  const [pendingSubjects, setPendingSubjects] = useState<Set<string>>(new Set());
+  const [enrolledSubjects, setEnrolledSubjects] = useState<Set<string>>(new Set());
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -110,7 +128,7 @@ const SubjectSelector = () => {
   };
   const fetchSubjectsByRole = async (page: number = 1, limit: number = 10, forceRefresh = false) => {
     setIsLoading(true);
-    console.log('Loading subjects data for teacher');
+    console.log('Loading subjects data for role:', instituteRole);
     try {
       let endpoint: string;
       const params = { page: page.toString(), limit: limit.toString() };
@@ -122,15 +140,17 @@ const SubjectSelector = () => {
         }
         endpoint = `/institutes/${currentInstituteId}/classes/${currentClassId}/subjects`;
       } else if (instituteRole === 'Teacher') {
-        if (!currentInstituteId || !currentClassId || !user.id) {
+        // Teacher uses the same class subjects endpoint as admin
+        if (!currentInstituteId || !currentClassId) {
           throw new Error('Missing required parameters for teacher subject fetch');
         }
-        endpoint = `/institutes/${currentInstituteId}/classes/${currentClassId}/subjects/teacher/${user.id}`;
+        endpoint = `/institutes/${currentInstituteId}/classes/${currentClassId}/subjects`;
       } else if (instituteRole === 'Student') {
-        if (!currentInstituteId || !currentClassId || !user.id) {
+        // Student uses the same class subjects endpoint
+        if (!currentInstituteId || !currentClassId) {
           throw new Error('Missing required parameters for student subject fetch');
         }
-        endpoint = `/institute-class-subject-students/${currentInstituteId}/student-subjects/class/${currentClassId}/student/${user.id}`;
+        endpoint = `/institutes/${currentInstituteId}/classes/${currentClassId}/subjects`;
       } else {
         // For other roles, use the original subjects endpoint
         endpoint = '/subjects';
@@ -154,7 +174,7 @@ const SubjectSelector = () => {
 
       console.log('Raw API response:', result);
       let subjects: SubjectCardData[] = [];
-      if (instituteRole === 'InstituteAdmin' || instituteRole === 'Teacher' || instituteRole === 'AttendanceMarker') {
+      if (instituteRole === 'InstituteAdmin' || instituteRole === 'Teacher' || instituteRole === 'AttendanceMarker' || instituteRole === 'Student') {
         // Handle the new API response format for Institute Admin and Teacher
         if (Array.isArray(result)) {
           // Direct array response
@@ -216,33 +236,35 @@ const SubjectSelector = () => {
         setTotalItems(totalSubjects);
         setTotalPages(totalPagesFromApi);
         setCurrentPage(result.page || page);
-      } else if (instituteRole === 'Student') {
-        // Handle the new API response format for students
-        if (result.data && Array.isArray(result.data)) {
-          subjects = result.data.map((item: any) => ({
-            id: item.subject.id,
-            name: item.subject.name,
-            code: item.subject.code,
-            description: item.subject.description || '',
-            category: item.subject.category || '',
-            creditHours: item.subject.creditHours || 0,
-            isActive: item.subject.isActive,
-            subjectType: item.subject.subjectType || '',
-            basketCategory: item.subject.basketCategory || '',
-            instituteType: item.subject.instituteType || '',
-            imgUrl: item.subject.imgUrl,
-            createdAt: item.subject.createdAt,
-            updatedAt: item.subject.updatedAt
-          }));
-        }
 
-        // For students, use the pagination data from the API response
-        const totalSubjects = result.total || 0;
-        const totalPages = Math.ceil(totalSubjects / limit);
-        setSubjectsData(subjects);
-        setTotalItems(totalSubjects);
-        setTotalPages(totalPages);
-        setCurrentPage(page);
+        // For students, fetch their enrolled subjects to determine enrollment status
+        if (instituteRole === 'Student') {
+          try {
+            const studentUserId = isViewingAsParent && selectedChild ? selectedChild.id : user.id;
+            const enrolledResult = await enhancedCachedClient.get(
+              `/institute-class-subject-students/${currentInstituteId}/student-subjects/class/${currentClassId}/student/${studentUserId}`,
+              { page: '1', limit: '100' },
+              { ttl: CACHE_TTL.SUBJECTS, forceRefresh, userId: user?.id, role: instituteRole, instituteId: currentInstituteId, classId: currentClassId }
+            );
+            const enrolledData = enrolledResult?.data || (Array.isArray(enrolledResult) ? enrolledResult : []);
+            const verifiedIds = new Set<string>();
+            const pendingIds = new Set<string>();
+            enrolledData.forEach((item: any) => {
+              const subId = item.subjectId || item.subject?.id;
+              if (subId) {
+                if (item.isVerified === false) {
+                  pendingIds.add(subId);
+                } else {
+                  verifiedIds.add(subId);
+                }
+              }
+            });
+            setEnrolledSubjects(verifiedIds);
+            setPendingSubjects(pendingIds);
+          } catch (enrollErr) {
+            console.error('Failed to fetch student enrollment status:', enrollErr);
+          }
+        }
       } else {
         // Handle the original response for other roles
         if (Array.isArray(result)) {
@@ -308,8 +330,23 @@ const SubjectSelector = () => {
       description: `Selected ${subject.name} (${subject.code})`
     });
     
-    // Auto-navigate to dashboard after selection
-    navigateToPage('dashboard');
+    // When parent is viewing child's data, navigate to child's dashboard
+    if (isViewingAsParent && selectedChild) {
+      console.log('Parent viewing child - navigating to child dashboard');
+      navigate(`/child/${selectedChild.id}/dashboard`);
+      return;
+    }
+    
+    // Auto-navigate to dashboard after selection.
+    // IMPORTANT: navigate directly using IDs to avoid stale selection state causing URL to miss /subject/:id.
+    const instituteId = currentInstituteId || selectedInstitute?.id;
+    const classId = currentClassId || selectedClass?.id;
+
+    if (instituteId && classId) {
+      navigate(`/institute/${instituteId}/class/${classId}/subject/${subject.id}/dashboard`);
+    } else {
+      navigateToPage('dashboard');
+    }
   };
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
@@ -322,6 +359,55 @@ const SubjectSelector = () => {
     setPageSize(newPageSize);
     fetchSubjectsByRole(1, newPageSize);
   };
+  const handleEnrollClick = (subject: SubjectCardData) => {
+    setEnrollSubject(subject);
+    setEnrollmentKey('');
+    setEnrollDialogOpen(true);
+  };
+
+  const handleEnrollSubmit = async () => {
+    if (!enrollSubject || !currentInstituteId || !currentClassId) return;
+    setIsEnrolling(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${getBaseUrl()}/institute-class-subject-students/self-enroll`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          instituteId: currentInstituteId,
+          classId: currentClassId,
+          subjectId: enrollSubject.id,
+          enrollmentKey
+        })
+      });
+      
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.message || 'Failed to enroll');
+      }
+      
+      const result = await response.json();
+      setPendingSubjects(prev => new Set(prev).add(enrollSubject.id));
+      setEnrollDialogOpen(false);
+      toast({
+        title: "Enrollment Submitted",
+        description: result.message || "Awaiting verification by teacher or admin."
+      });
+    } catch (error: any) {
+      console.error('Enrollment error:', error);
+      toast({
+        title: "Enrollment Failed",
+        description: error.message || "Failed to enroll in subject",
+        variant: "destructive"
+      });
+    } finally {
+      setIsEnrolling(false);
+    }
+  };
+
   if (!user) {
     return <div className="text-center py-12">
         <p className="text-gray-600 dark:text-gray-400">Please log in to view subjects.</p>
@@ -337,49 +423,57 @@ const SubjectSelector = () => {
         <p className="text-gray-600 dark:text-gray-400">Please select a class first.</p>
       </div>;
   }
-  return <div className="space-y-4 sm:space-y-6 p-3 sm:p-0">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-16">
+  const isTuitionInstitute = selectedInstitute?.type === 'tuition_institute';
+  const subjectLabel = isTuitionInstitute ? 'Sub Class' : 'Subject';
+  const subjectLabelPlural = isTuitionInstitute ? 'Sub Classes' : 'Subject';
+
+  return <div className="space-y-2 sm:space-y-4 p-1 sm:p-2 md:p-0">
+      {/* Show Current Child Selection for Parent flow */}
+      {isViewingAsParent && <ChildCurrentSelection className="mb-3" />}
+      
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1.5 sm:gap-2 mb-2 sm:mb-4">
         <div className="flex-1">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-            Select Subject
+          <h1 className="text-sm sm:text-base md:text-lg font-semibold text-foreground mb-0.5">
+            Select {subjectLabelPlural}
           </h1>
-          <p className="text-sm sm:text-base text-gray-600">
-            Choose a subject to manage lectures and attendance
+          <p className="text-[10px] sm:text-xs text-muted-foreground">
+            Choose a {subjectLabel.toLowerCase()} to manage lectures and attendance
           </p>
-          {selectedInstitute && <p className="text-xs sm:text-sm text-blue-600 mt-2">
+          {selectedInstitute && <p className="text-[9px] sm:text-[10px] text-primary mt-0.5">
               Institute: {selectedInstitute.name}
             </p>}
-          {selectedClass && <p className="text-xs sm:text-sm text-green-600 mt-1">
+          {selectedClass && <p className="text-[9px] sm:text-[10px] text-green-600 dark:text-green-400 mt-0.5">
               Class: {selectedClass.name}
             </p>}
         </div>
-        <Button onClick={() => fetchSubjectsByRole(currentPage, pageSize, true)} disabled={isLoading} variant="outline" size="sm" className="w-full sm:w-auto">
+        <Button onClick={() => fetchSubjectsByRole(currentPage, pageSize, true)} disabled={isLoading} variant="outline" size="sm" className="w-full sm:w-auto h-6 sm:h-7 text-[10px] sm:text-xs px-2">
           {isLoading ? <>
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+              <RefreshCw className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1 animate-spin" />
               <span className="hidden sm:inline">Loading...</span>
             </> : <>
-              <RefreshCw className="h-4 w-4 mr-2" />
+              <RefreshCw className="h-2.5 w-2.5 sm:h-3 sm:w-3 mr-0.5 sm:mr-1" />
               <span className="hidden sm:inline">Refresh</span>
             </>}
         </Button>
       </div>
 
-      {subjectsData.length === 0 && !isLoading ? <div className="text-center py-12">
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
+      {subjectsData.length === 0 && !isLoading ? <div className="text-center py-10">
+          <p className="text-muted-foreground">
             No subjects found for this class
           </p>
-        </div> : <div className="max-h-[600px] overflow-y-auto">
-          <div className={`grid grid-cols-1 md:grid-cols-2 ${sidebarCollapsed ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-4 md:gap-6 p-2 md:p-4 mb-16`}>
+        </div> : <div className="flex flex-col min-h-[calc(100vh-180px)]">
+          {/* Unified Card View - Same size on all devices */}
+          <div className={`grid grid-cols-1 sm:grid-cols-2 ${sidebarCollapsed ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-x-3 gap-y-8 sm:gap-x-4 sm:gap-y-10 pt-3 md:pt-6 mb-8`}>
             {subjectsData.map(subject => {
               const showMore = expandedSubjectId === subject.id;
               
               return (
                 <div 
                   key={subject.id} 
-                  className="relative flex w-full flex-col rounded-xl bg-white dark:bg-gray-800 bg-clip-border text-gray-700 dark:text-gray-300 shadow-md transition-all duration-200 hover:shadow-lg hover:scale-[1.02]"
+                  className="relative flex w-full flex-col rounded-lg bg-card bg-clip-border text-card-foreground shadow-sm hover:shadow-md transition-all duration-300"
                 >
-                  {/* Subject Image - Gradient Header with -mt-6 offset */}
-                  <div className="relative mx-4 -mt-6 h-40 overflow-hidden rounded-xl bg-clip-border text-white shadow-lg shadow-blue-gray-500/40 bg-gradient-to-r from-blue-500 to-blue-600">
+                  {/* Subject Image - Gradient Header */}
+                  <div className="relative mx-3 -mt-5 h-28 overflow-hidden rounded-lg bg-clip-border text-white shadow-md shadow-primary/30 bg-gradient-to-r from-primary to-primary/80">
                     {subject.imgUrl ? (
                       <img 
                         src={getImageUrl(subject.imgUrl)} 
@@ -387,119 +481,194 @@ const SubjectSelector = () => {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-blue-500 to-blue-600">
-                        <BookOpen className="w-16 h-16 text-white" />
+                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-r from-primary to-primary/80">
+                        <BookOpen className="w-8 h-8 text-white" />
                       </div>
                     )}
                   </div>
 
-                  <div className="p-6">
+                  <div className="p-4">
                     {/* Subject Name */}
-                    <h5 className="mb-2 block font-sans text-xl font-semibold leading-snug tracking-normal text-blue-gray-900 dark:text-white antialiased">
+                    <h5 className="mb-1.5 block font-sans text-sm font-semibold leading-snug tracking-normal text-foreground antialiased line-clamp-2">
                       {subject.name}
                     </h5>
 
                     {/* Subject Code and Category */}
-                    <div className="flex items-center justify-start gap-2 mb-4">
-                      <Badge variant={subject.category === 'Core' ? 'default' : 'secondary'} className="text-xs">
+                    <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                      <Badge variant={subject.category === 'Core' ? 'default' : 'secondary'} className="text-[10px] px-1.5 py-0">
                         {subject.category}
+                      </Badge>
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {subject.code}
                       </Badge>
                     </div>
 
+                    {/* Description */}
+                    <p className="block font-sans text-xs font-light leading-relaxed text-muted-foreground antialiased line-clamp-2">
+                      {subject.description || 'No description available'}
+                    </p>
+
                     {/* Additional Info - Shown when Read More is clicked */}
                     {showMore && (
-                      <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300 space-y-2 border-t border-gray-200 dark:border-gray-700 pt-3">
-                        <div className="text-sm text-gray-700 dark:text-gray-300">
-                          <span className="font-semibold">Code:</span> {subject.code}
-                        </div>
-                        <div className="text-sm text-gray-700 dark:text-gray-300">
-                          <span className="font-semibold">Description:</span> {subject.description || 'No description available'}
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                          <span className="font-semibold">Credits:</span>
-                          <span>{subject.creditHours}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                          <span className="font-semibold">Type:</span>
-                          <span>{subject.subjectType}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                          <span className="font-semibold">Basket:</span>
-                          <span>{subject.basketCategory}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
-                          <span className="font-semibold">Status:</span>
-                          <Badge variant={subject.isActive ? 'default' : 'secondary'} className="text-xs">
-                            {subject.isActive ? 'Active' : 'Inactive'}
-                          </Badge>
-                        </div>
+                      <div className="mt-3 animate-in fade-in slide-in-from-top-2 duration-300 space-y-1.5 border-t border-border pt-2">
+                        {subject.creditHours > 0 && (
+                          <div className="text-xs">
+                            <span className="font-semibold text-foreground">Credits:</span>
+                            <span className="text-muted-foreground ml-1.5">{subject.creditHours}</span>
+                          </div>
+                        )}
+                        {subject.subjectType && (
+                          <div className="text-xs">
+                            <span className="font-semibold text-foreground">Type:</span>
+                            <span className="text-muted-foreground ml-1.5">{subject.subjectType}</span>
+                          </div>
+                        )}
+                        {subject.basketCategory && (
+                          <div className="text-xs">
+                            <span className="font-semibold text-foreground">Basket:</span>
+                            <span className="text-muted-foreground ml-1.5">{subject.basketCategory}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
 
                   {/* Action Buttons */}
-                  <div className="p-6 pt-0 space-y-2">
+                  <div className="p-4 pt-0 space-y-2">
                     <button
                       onClick={() => setExpandedSubjectId(showMore ? null : subject.id)}
-                      className="select-none rounded-lg bg-gray-100 dark:bg-gray-700 py-3 px-6 w-full text-center align-middle font-sans text-xs font-bold uppercase text-gray-900 dark:text-white shadow-md transition-all hover:shadow-lg focus:opacity-[0.85] focus:shadow-none active:opacity-[0.85] active:shadow-none"
+                      className="w-full select-none rounded-md bg-muted py-2 px-4 text-center align-middle font-sans text-[10px] font-semibold uppercase text-foreground shadow-sm transition-all hover:shadow active:opacity-90"
                     >
-                      {showMore ? 'Hide Details' : 'Read More'}
+                      {showMore ? 'Show Less' : 'Read More'}
                     </button>
                     
-                    <button 
-                      onClick={() => handleSelectSubject(subject)}
-                      className="select-none rounded-lg bg-blue-500 py-3 px-6 w-full text-center align-middle font-sans text-xs font-bold uppercase text-white shadow-md shadow-blue-500/20 transition-all hover:shadow-lg hover:shadow-blue-500/40 focus:opacity-[0.85] focus:shadow-none active:opacity-[0.85] active:shadow-none"
-                    >
-                      Select Subject
-                    </button>
+                    {/* Select Subject button - for students, only enabled if enrolled & verified */}
+                    {instituteRole === 'Student' ? (
+                      enrolledSubjects.has(subject.id) ? (
+                        <button 
+                          onClick={() => handleSelectSubject(subject)}
+                          className="w-full select-none rounded-md bg-primary py-2 px-4 text-center align-middle font-sans text-[10px] font-semibold uppercase text-primary-foreground shadow-sm shadow-primary/20 transition-all hover:shadow-md hover:shadow-primary/30 active:opacity-90"
+                        >
+                          Select {subjectLabel}
+                        </button>
+                      ) : pendingSubjects.has(subject.id) ? (
+                        <div className="w-full text-center py-2">
+                          <Badge variant="outline" className="text-amber-600 border-amber-300">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Pending Verification
+                          </Badge>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleEnrollClick(subject)}
+                          className="w-full select-none rounded-md border border-primary py-2 px-4 text-center align-middle font-sans text-[10px] font-semibold uppercase text-primary shadow-sm transition-all hover:bg-primary/10 active:opacity-90"
+                        >
+                          <LogIn className="h-3 w-3 inline mr-1" />
+                          Enroll
+                        </button>
+                      )
+                    ) : (
+                      <button 
+                        onClick={() => handleSelectSubject(subject)}
+                        className="w-full select-none rounded-md bg-primary py-2 px-4 text-center align-middle font-sans text-[10px] font-semibold uppercase text-primary-foreground shadow-sm shadow-primary/20 transition-all hover:shadow-md hover:shadow-primary/30 active:opacity-90"
+                      >
+                        Select {subjectLabel}
+                      </button>
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Pagination - Always show when data is loaded */}
+          {/* Pagination */}
           {dataLoaded && totalPages > 0 && (
-            <div className="flex flex-col sm:flex-row justify-center items-center gap-2 sm:gap-4 mt-6 pb-4 px-4">
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => handlePageChange(currentPage - 1)} 
-                disabled={currentPage <= 1 || isLoading}
-                className="w-full sm:w-auto"
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Previous
-              </Button>
-              
-              <span className="text-sm text-gray-600 dark:text-gray-400">
-                Page {currentPage} of {totalPages} ({totalItems} total)
-              </span>
-              
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => handlePageChange(currentPage + 1)} 
-                disabled={currentPage >= totalPages || isLoading}
-                className="w-full sm:w-auto"
-              >
-                Next
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-              
-              <select 
-                value={pageSize}
-                onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md text-sm bg-background text-foreground w-full sm:w-auto"
-                disabled={isLoading}
-              >
-                <option value={10}>10 per page</option>
-                <option value={50}>50 per page</option>
-                <option value={100}>100 per page</option>
-              </select>
+            <div className="mt-auto bg-background border-t border-border py-2 sm:py-3 px-2 sm:px-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-1.5 sm:gap-2">
+                <span className="text-[10px] sm:text-xs text-muted-foreground">
+                  {totalItems} {subjectLabelPlural.toLowerCase()} total
+                </span>
+                
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)} 
+                    disabled={currentPage <= 1 || isLoading}
+                    className="h-6 sm:h-7 text-[10px] sm:text-xs px-1.5 sm:px-2"
+                  >
+                    <ChevronLeft className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-0.5" />
+                    Prev
+                  </Button>
+                  
+                  <span className="text-[10px] sm:text-xs text-muted-foreground font-medium">
+                    {currentPage} / {totalPages}
+                  </span>
+                  
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)} 
+                    disabled={currentPage >= totalPages || isLoading}
+                    className="h-6 sm:h-7 text-[10px] sm:text-xs px-1.5 sm:px-2"
+                  >
+                    Next
+                    <ChevronRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 ml-0.5" />
+                  </Button>
+                </div>
+
+                <Select value={pageSize.toString()} onValueChange={value => handlePageSizeChange(parseInt(value, 10))}>
+                  <SelectTrigger className="w-[80px] sm:w-[100px] h-6 sm:h-7 text-[10px] sm:text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / page</SelectItem>
+                    <SelectItem value="50">50 / page</SelectItem>
+                    <SelectItem value="100">100 / page</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
         </div>}
+
+      {/* Enrollment Dialog */}
+      <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Enroll in {enrollSubject?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="enrollmentKey">Enrollment Key</Label>
+              <Input
+                id="enrollmentKey"
+                placeholder="Enter enrollment key"
+                value={enrollmentKey}
+                onChange={(e) => setEnrollmentKey(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the enrollment key provided by your teacher or admin.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEnrollDialogOpen(false)} disabled={isEnrolling}>
+              Cancel
+            </Button>
+            <Button onClick={handleEnrollSubmit} disabled={isEnrolling || !enrollmentKey.trim()}>
+              {isEnrolling ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Enrolling...
+                </>
+              ) : (
+                'Enroll'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>;
 };
 export default SubjectSelector;

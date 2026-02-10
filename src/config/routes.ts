@@ -89,12 +89,14 @@ export const ROUTE_PATTERNS = {
   // Settings & Profile
   PROFILE: '/profile',
   SETTINGS: '/settings',
+  SESSIONS: '/sessions',
   APPEARANCE: '/appearance',
   
   // Special Routes
   QR_ATTENDANCE: '/qr-attendance',
   RFID_ATTENDANCE: '/rfid-attendance',
   SMS_HISTORY: '/sms-history',
+  ENROLLMENT_MANAGEMENT: '/enrollment-management',
   
   // 404
   NOT_FOUND: '*'
@@ -201,12 +203,23 @@ export const ROUTES = {
   // Profile & Settings
   profile: () => '/profile',
   settings: () => '/settings',
+  sessions: () => '/sessions',
   appearance: () => '/appearance',
   
   // Special
   qrAttendance: () => '/qr-attendance',
   rfidAttendance: () => '/rfid-attendance',
-  smsHistory: () => '/sms-history'
+  smsHistory: () => '/sms-history',
+  enrollmentManagement: (params: { instituteId: string; classId: string; subjectId: string; subjectName?: string; className?: string }) => {
+    const searchParams = new URLSearchParams({
+      instituteId: params.instituteId,
+      classId: params.classId,
+      subjectId: params.subjectId,
+      ...(params.subjectName && { subjectName: params.subjectName }),
+      ...(params.className && { className: params.className })
+    });
+    return `/enrollment-management?${searchParams.toString()}`;
+  }
 } as const;
 
 // ============================================

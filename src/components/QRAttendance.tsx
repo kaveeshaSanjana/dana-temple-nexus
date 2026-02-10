@@ -14,12 +14,16 @@ import jsQR from 'jsqr';
 import { childAttendanceApi, MarkAttendanceByCardRequest, MarkAttendanceRequest } from '@/api/childAttendance.api';
 import { useInstituteRole } from '@/hooks/useInstituteRole';
 import { buildAttendanceAddress } from '@/utils/attendanceAddress';
+import { AttendanceStatus, ALL_ATTENDANCE_STATUSES, ATTENDANCE_STATUS_CONFIG } from '@/types/attendance.types';
+import { CapacitorBarcodeScanner, CapacitorBarcodeScannerTypeHintALLOption, CapacitorBarcodeScannerCameraDirection } from '@capacitor/barcode-scanner';
+import { Capacitor } from '@capacitor/core';
+
 interface AttendanceAlert {
   id: string;
   type: 'success' | 'error';
   studentName?: string;
   studentId?: string;
-  status?: 'present' | 'absent' | 'late';
+  status?: AttendanceStatus;
   message: string;
   timestamp: Date;
 }
@@ -36,12 +40,15 @@ const QRAttendance = () => {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number; address: string } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
-  const [status, setStatus] = useState<'present' | 'absent' | 'late'>('present');
+  const [status, setStatus] = useState<AttendanceStatus>('present');
   const [attendanceAlerts, setAttendanceAlerts] = useState<AttendanceAlert[]>([]);
   const [showMethodDialog, setShowMethodDialog] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<'qr' | 'barcode' | 'rfid/nfc'>('qr');
   const [studentImagesMap, setStudentImagesMap] = useState<Map<string, string>>(new Map());
   const [isManualProcessing, setIsManualProcessing] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [lastMarkedStudent, setLastMarkedStudent] = useState<{ name: string; status: AttendanceStatus } | null>(null);
+  const [isNativeScanning, setIsNativeScanning] = useState(false); // Track native scanner state
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -286,45 +293,91 @@ const QRAttendance = () => {
 
       console.log('🔐 Requesting camera permissions...');
       
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
-      });
-
-      streamRef.current = stream;
-      videoRef.current.srcObject = stream;
-
-      console.log('✅ Camera permissions granted');
-
-      // Wait for video to be ready
-      await new Promise<void>((resolve, reject) => {
-        const video = videoRef.current!;
+      // Use platform-aware camera access
+      if (Capacitor.isNativePlatform()) {
+        // Mobile: Use @capacitor/barcode-scanner - opens native non-fullscreen scanner
+        console.log('📱 Using @capacitor/barcode-scanner for mobile...');
+        setIsNativeScanning(true);
+        setIsScanning(true);
         
-        const onLoadedMetadata = () => {
-          video.removeEventListener('loadedmetadata', onLoadedMetadata);
-          console.log('📹 Video metadata loaded:', {
-            width: video.videoWidth,
-            height: video.videoHeight
-          });
-          resolve();
+        // Start continuous scanning loop for native
+        const nativeScanLoop = async () => {
+          try {
+            while (true) {
+              const result = await CapacitorBarcodeScanner.scanBarcode({
+                hint: CapacitorBarcodeScannerTypeHintALLOption.ALL,
+                scanInstructions: 'Position QR code or barcode within the frame',
+                scanButton: false,
+                cameraDirection: CapacitorBarcodeScannerCameraDirection.BACK,
+              });
+              
+              if (result.ScanResult && result.ScanResult.trim()) {
+                console.log('🎯 Native scan detected:', result.ScanResult);
+                handleMarkAttendanceByCard(result.ScanResult.trim());
+                
+                // Brief pause, then scan again
+                await new Promise(resolve => setTimeout(resolve, 1500));
+              } else {
+                // User cancelled or empty result - stop scanning
+                console.log('📱 Native scanner closed by user');
+                break;
+              }
+            }
+          } catch (error) {
+            console.error('Native scan error:', error);
+          } finally {
+            setIsNativeScanning(false);
+            setIsScanning(false);
+          }
         };
-
-        video.addEventListener('loadedmetadata', onLoadedMetadata);
         
-        setTimeout(() => {
-          video.removeEventListener('loadedmetadata', onLoadedMetadata);
-          reject(new Error('Video failed to load metadata'));
-        }, 10000);
-      });
+        nativeScanLoop();
+        return; // Don't continue to web camera setup
+      } else {
+        // Web: Use getUserMedia API
+        console.log('🌐 Using getUserMedia for web...');
+        
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
 
-      // Start playing video
-      await videoRef.current.play();
+        streamRef.current = stream;
+        videoRef.current.srcObject = stream;
+
+        console.log('✅ Camera permissions granted');
+
+        // Wait for video to be ready
+        await new Promise<void>((resolve, reject) => {
+          const video = videoRef.current!;
+          
+          const onLoadedMetadata = () => {
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            console.log('📹 Video metadata loaded:', {
+              width: video.videoWidth,
+              height: video.videoHeight
+            });
+            resolve();
+          };
+
+          video.addEventListener('loadedmetadata', onLoadedMetadata);
+          
+          setTimeout(() => {
+            video.removeEventListener('loadedmetadata', onLoadedMetadata);
+            reject(new Error('Video failed to load metadata'));
+          }, 10000);
+        });
+
+        // Start playing video
+        await videoRef.current.play();
+        
+        // Start QR scanning loop
+        scanQRCode();
+      }
       
-      // Start QR scanning loop
-      scanQRCode();
       
       setIsScanning(true);
       setCameraError(null);
@@ -360,7 +413,7 @@ const QRAttendance = () => {
     }
   };
 
-  const stopCamera = () => {
+  const stopCamera = async () => {
     try {
       console.log('🛑 Stopping camera...');
       
@@ -370,15 +423,22 @@ const QRAttendance = () => {
         animationRef.current = null;
       }
       
-      // Stop media stream
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-      
-      // Clear video source
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
+      // Platform-specific cleanup
+      if (Capacitor.isNativePlatform()) {
+        // Native scanner manages its own UI - just update state
+        setIsNativeScanning(false);
+        console.log('✅ Native scanner state cleared');
+      } else {
+        // Web: Stop media stream
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
+        }
+        
+        // Clear video source
+        if (videoRef.current) {
+          videoRef.current.srcObject = null;
+        }
       }
       
       setIsScanning(false);
@@ -465,6 +525,11 @@ const QRAttendance = () => {
           status: attendanceStatus,
         });
         setMarkedCount(prev => prev + 1);
+        
+        // Show success animation
+        setLastMarkedStudent({ name: studentName, status: attendanceStatus });
+        setShowSuccessAnimation(true);
+        setTimeout(() => setShowSuccessAnimation(false), 3000);
         
         console.log('🎉 SUCCESS: Attendance marked!');
         console.log('📝 Attendance ID:', result.attendanceId);
@@ -684,8 +749,9 @@ const QRAttendance = () => {
 
   return (
       <div className="min-h-screen bg-background">
+      
       {/* Attendance Alerts */}
-      <div className="fixed top-4 left-4 z-50 space-y-2 max-w-sm">
+      <div className="fixed top-4 left-4 z-50 space-y-2 max-w-sm pt-safe-top">
         {attendanceAlerts.map((alert) => (
           <Alert 
             key={alert.id}
@@ -828,14 +894,16 @@ const QRAttendance = () => {
                  <div className="space-y-4">
                    <div>
                      <p className="text-sm font-medium mb-2">Status</p>
-                     <Select value={status} onValueChange={(value) => setStatus(value as 'present' | 'absent' | 'late')}>
+                     <Select value={status} onValueChange={(value) => setStatus(value as AttendanceStatus)}>
                        <SelectTrigger className="w-full">
                          <SelectValue />
                        </SelectTrigger>
                        <SelectContent className="bg-white dark:bg-gray-800 z-50">
-                         <SelectItem value="present">Present</SelectItem>
-                         <SelectItem value="absent">Absent</SelectItem>
-                         <SelectItem value="late">Late</SelectItem>
+                          {ALL_ATTENDANCE_STATUSES.map((statusOption) => (
+                            <SelectItem key={statusOption} value={statusOption}>
+                              {ATTENDANCE_STATUS_CONFIG[statusOption].label}
+                            </SelectItem>
+                          ))}
                        </SelectContent>
                      </Select>
                    </div>
@@ -857,83 +925,156 @@ const QRAttendance = () => {
                </div>
              ) : (
                <div className="space-y-4 sm:space-y-6">
-                 {/* Status Selector while scanning */}
-                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
-                   <p className="text-sm font-medium mb-2">Status</p>
-                   <Select value={status} onValueChange={(value) => setStatus(value as 'present' | 'absent' | 'late')}>
-                     <SelectTrigger className="w-full">
-                       <SelectValue />
-                     </SelectTrigger>
-                     <SelectContent className="bg-white dark:bg-gray-800 z-50">
-                       <SelectItem value="present">Present</SelectItem>
-                       <SelectItem value="absent">Absent</SelectItem>
-                       <SelectItem value="late">Late</SelectItem>
-                     </SelectContent>
-                   </Select>
+                 {/* Header with Back Button and Status */}
+                 <div className="flex items-center gap-4">
+                   <Button 
+                     onClick={stopCamera} 
+                     variant="outline" 
+                     size="sm"
+                     className="flex items-center gap-2"
+                   >
+                     <ArrowLeft className="h-4 w-4" />
+                     Back
+                   </Button>
+                   
+                   <div className="flex-1">
+                     <Select value={status} onValueChange={(value) => setStatus(value as AttendanceStatus)}>
+                       <SelectTrigger className="w-full">
+                         <SelectValue />
+                       </SelectTrigger>
+                       <SelectContent className="bg-white dark:bg-gray-800 z-50">
+                          {ALL_ATTENDANCE_STATUSES.map((statusOption) => (
+                            <SelectItem key={statusOption} value={statusOption}>
+                              {ATTENDANCE_STATUS_CONFIG[statusOption].label}
+                            </SelectItem>
+                          ))}
+                       </SelectContent>
+                     </Select>
+                   </div>
                  </div>
                  
-                 {/* Mobile Responsive Camera View */}
-                  <div className="relative w-full h-[70vh] sm:h-[500px] md:h-[600px] lg:h-[700px] bg-black rounded-lg sm:rounded-2xl overflow-hidden shadow-2xl">
-                   <video
-                     ref={videoRef}
-                     className="w-full h-full object-cover"
-                     playsInline
-                     muted
-                   />
-                   <canvas
-                     ref={canvasRef}
-                     className="hidden"
-                   />
-                   {cameraError && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                      <div className="text-center text-white p-4 sm:p-8">
-                        <AlertCircle className="h-8 w-8 sm:h-16 sm:w-16 mx-auto mb-3 sm:mb-6" />
-                        <p className="text-base sm:text-xl">{cameraError}</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* Mobile Responsive Scanning Overlay */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                      {/* Mobile: smaller frame, Desktop: larger frame */}
-                      <div className="w-56 h-56 sm:w-72 sm:h-72 md:w-80 md:h-80 lg:w-96 lg:h-96 border-2 sm:border-4 border-white/70 rounded-2xl sm:rounded-3xl shadow-lg">
-                        {/* Corner indicators - responsive sizes */}
-                        <div className="absolute -top-1 -left-1 sm:-top-2 sm:-left-2 w-6 h-6 sm:w-12 sm:h-12 border-t-4 border-l-4 sm:border-t-8 sm:border-l-8 border-white rounded-tl-2xl sm:rounded-tl-3xl"></div>
-                        <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 w-6 h-6 sm:w-12 sm:h-12 border-t-4 border-r-4 sm:border-t-8 sm:border-r-8 border-white rounded-tr-2xl sm:rounded-tr-3xl"></div>
-                        <div className="absolute -bottom-1 -left-1 sm:-bottom-2 sm:-left-2 w-6 h-6 sm:w-12 sm:h-12 border-b-4 border-l-4 sm:border-b-8 sm:border-l-8 border-white rounded-bl-2xl sm:rounded-bl-3xl"></div>
-                        <div className="absolute -bottom-1 -right-1 sm:-bottom-2 sm:-right-2 w-6 h-6 sm:w-12 sm:h-12 border-b-4 border-r-4 sm:border-b-8 sm:border-r-8 border-white rounded-br-2xl sm:rounded-br-3xl"></div>
+                 {/* Compact Camera View - Not Full Screen */}
+                 <div className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg border">
+                   <div className="relative w-full max-w-md mx-auto aspect-square bg-gray-900 rounded-xl overflow-hidden shadow-xl">
+                     <video
+                       ref={videoRef}
+                       className="w-full h-full object-cover"
+                       playsInline
+                       muted
+                     />
+                     <canvas
+                       ref={canvasRef}
+                       className="hidden"
+                     />
+                     {cameraError && (
+                       <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                         <div className="text-center text-white p-4">
+                           <AlertCircle className="h-12 w-12 mx-auto mb-3" />
+                           <p className="text-sm">{cameraError}</p>
+                         </div>
+                       </div>
+                     )}
+                      
+                      {/* Scanning Overlay - Compact Version */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        {/* Success Animation Overlay */}
+                        {showSuccessAnimation && lastMarkedStudent && (
+                          <div className="absolute inset-0 bg-green-500/30 backdrop-blur-sm flex items-center justify-center z-50 animate-in fade-in duration-300">
+                            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-2xl max-w-xs mx-4 animate-in zoom-in duration-300">
+                              <div className="text-center space-y-3">
+                                <div className="mx-auto w-16 h-16 bg-green-500 rounded-full flex items-center justify-center animate-in zoom-in duration-500">
+                                  <CheckCircle className="h-10 w-10 text-white" />
+                                </div>
+                                <div>
+                                  <h3 className="text-lg font-bold text-green-600 dark:text-green-400 mb-1">
+                                    Attendance Marked!
+                                  </h3>
+                                  <p className="text-base font-medium text-gray-900 dark:text-gray-100">
+                                    {lastMarkedStudent.name}
+                                  </p>
+                                  <Badge className="mt-2" variant={lastMarkedStudent.status === 'present' ? 'default' : 'secondary'}>
+                                    {ATTENDANCE_STATUS_CONFIG[lastMarkedStudent.status].label}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         
-                        {/* Center crosshair - responsive sizes */}
-                        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                          <div className="w-4 h-0.5 sm:w-8 sm:h-1 bg-white/90 rounded-full"></div>
-                          <div className="w-0.5 h-4 sm:w-1 sm:h-8 bg-white/90 rounded-full absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
+                        {/* Scanning Frame */}
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="relative w-48 h-48 sm:w-56 sm:h-56">
+                            {/* Outer glow */}
+                            <div className="absolute inset-0 border-3 border-blue-500/20 rounded-2xl animate-pulse"></div>
+                            
+                            {/* Main frame */}
+                            <div className="absolute inset-1 border-3 border-white/80 rounded-xl shadow-lg">
+                              {/* Corner indicators */}
+                              <div className="absolute -top-1 -left-1 w-8 h-8">
+                                <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-r from-blue-500 to-transparent"></div>
+                                <div className="absolute top-0 left-0 w-0.5 h-full bg-gradient-to-b from-blue-500 to-transparent"></div>
+                              </div>
+                              <div className="absolute -top-1 -right-1 w-8 h-8">
+                                <div className="absolute top-0 right-0 w-full h-0.5 bg-gradient-to-l from-blue-500 to-transparent"></div>
+                                <div className="absolute top-0 right-0 w-0.5 h-full bg-gradient-to-b from-blue-500 to-transparent"></div>
+                              </div>
+                              <div className="absolute -bottom-1 -left-1 w-8 h-8">
+                                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-gradient-to-r from-blue-500 to-transparent"></div>
+                                <div className="absolute bottom-0 left-0 w-0.5 h-full bg-gradient-to-t from-blue-500 to-transparent"></div>
+                              </div>
+                              <div className="absolute -bottom-1 -right-1 w-8 h-8">
+                                <div className="absolute bottom-0 right-0 w-full h-0.5 bg-gradient-to-l from-blue-500 to-transparent"></div>
+                                <div className="absolute bottom-0 right-0 w-0.5 h-full bg-gradient-to-t from-blue-500 to-transparent"></div>
+                              </div>
+                              
+                              {/* Center target */}
+                              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                                <div className="relative w-6 h-6">
+                                  <div className="absolute inset-0 border border-white/50 rounded-full"></div>
+                                  <div className="absolute top-1/2 left-0 right-0 h-px bg-white/50 transform -translate-y-1/2"></div>
+                                  <div className="absolute left-1/2 top-0 bottom-0 w-px bg-white/50 transform -translate-x-1/2"></div>
+                                </div>
+                              </div>
+                              
+                              {/* Scanning line */}
+                              <div className="absolute inset-0 overflow-hidden rounded-xl">
+                                <div className="absolute left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-400 to-transparent animate-scan-line"></div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
-                    
-                    {/* Instruction text - responsive positioning and sizing */}
-                    <div className="absolute bottom-4 sm:bottom-8 left-0 right-0 text-center px-4">
-                      <div className="bg-black/70 text-white px-3 py-2 sm:px-6 sm:py-3 rounded-lg sm:rounded-xl mx-auto max-w-fit">
-                        <p className="text-sm sm:text-lg font-medium">Position QR code within the frame</p>
+                        
+                        {/* Status indicators */}
+                        <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
+                          <div className="bg-black/60 text-white px-3 py-1.5 rounded-md backdrop-blur-sm flex items-center gap-2 text-xs">
+                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                            <span className="font-medium">Scanning...</span>
+                          </div>
+                          <div className="bg-black/60 text-white px-3 py-1.5 rounded-md backdrop-blur-sm text-xs">
+                            <span className="font-bold">{markedCount}</span>
+                            <span className="ml-1">marked</span>
+                          </div>
+                        </div>
+                        
+                        {/* Instruction */}
+                        <div className="absolute bottom-2 left-2 right-2 text-center">
+                          <div className="bg-gradient-to-r from-blue-600/80 to-purple-600/80 text-white px-4 py-2 rounded-lg mx-auto max-w-fit shadow-lg backdrop-blur-sm border border-white/10">
+                            <div className="flex items-center gap-2 text-xs">
+                              {selectedMethod === 'qr' ? (
+                                <QrCode className="h-3 w-3" />
+                              ) : (
+                                <BarChart3 className="h-3 w-3" />
+                              )}
+                              <span className="font-medium">Align code within frame</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-
-                <div className="flex justify-center px-4">
-                  <Button 
-                    onClick={stopCamera} 
-                    variant="outline" 
-                    size="lg"
-                    className="w-full sm:w-auto sm:min-w-[250px] text-base sm:text-lg py-4 sm:py-6"
-                  >
-                    Stop Camera
-                  </Button>
-                </div>
-              </div>
-            )}
-          </CardContent>
+              )}
+            </CardContent>
         </Card>
 
         {/* Manual Entry - Separate section */}
@@ -951,14 +1092,16 @@ const QRAttendance = () => {
              <div className="space-y-4">
                <div>
                  <p className="text-sm font-medium mb-2">Status</p>
-                 <Select value={status} onValueChange={(value) => setStatus(value as 'present' | 'absent' | 'late')}>
+                 <Select value={status} onValueChange={(value) => setStatus(value as AttendanceStatus)}>
                    <SelectTrigger className="w-full">
                      <SelectValue />
                    </SelectTrigger>
                    <SelectContent className="bg-white dark:bg-gray-800 z-50">
-                     <SelectItem value="present">Present</SelectItem>
-                     <SelectItem value="absent">Absent</SelectItem>
-                     <SelectItem value="late">Late</SelectItem>
+                      {ALL_ATTENDANCE_STATUSES.map((statusOption) => (
+                        <SelectItem key={statusOption} value={statusOption}>
+                          {ATTENDANCE_STATUS_CONFIG[statusOption].label}
+                        </SelectItem>
+                      ))}
                    </SelectContent>
                  </Select>
                </div>
@@ -1063,7 +1206,7 @@ const QRAttendance = () => {
           </div>
         </DialogContent>
       </Dialog>
-      </div>
+    </div>
   );
 };
 

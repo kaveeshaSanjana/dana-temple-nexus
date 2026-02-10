@@ -1,4 +1,5 @@
 import { LoginCredentials, ApiResponse, ApiUserResponse } from '../types/auth.types';
+import { tokenStorageService, isNativePlatform, getAuthHeadersSync } from '@/services/tokenStorageService';
 
 // ============= BASE URL CONFIGURATION =============
 
@@ -9,10 +10,8 @@ export const getBaseUrl = (): string => {
 export const getBaseUrl2 = (): string => {
   const storedUrl = localStorage.getItem('baseUrl2');
   if (storedUrl) return storedUrl;
-  
   const envUrl = import.meta.env.VITE_API_BASE_URL_2;
   if (envUrl) return envUrl;
-  
   return '';
 };
 
@@ -22,17 +21,61 @@ export const getAttendanceUrl = (): string => {
 
 // ============= API HEADERS =============
 
+/** @deprecated Use getApiHeadersAsync() */
 export const getApiHeaders = (): Record<string, string> => {
+  return getAuthHeadersSync();
+};
+
+export const getApiHeadersAsync = async (): Promise<Record<string, string>> => {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json'
   };
-
-  const token = localStorage.getItem('access_token');
+  const token = await tokenStorageService.getAccessToken();
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-
   return headers;
+};
+
+export const getCredentialsMode = (): RequestCredentials => {
+  return isNativePlatform() ? 'omit' : 'include';
+};
+
+// ============= ORG TOKEN HELPERS =============
+
+export const getOrgAccessTokenAsync = async (): Promise<string | null> => {
+  if (isNativePlatform()) {
+    try {
+      const { SecureStoragePlugin } = await import('capacitor-secure-storage-plugin');
+      const result = await SecureStoragePlugin.get({ key: 'org_access_token' });
+      return result.value;
+    } catch {
+      return null;
+    }
+  }
+  return localStorage.getItem('org_access_token');
+};
+
+export const setOrgAccessTokenAsync = async (token: string): Promise<void> => {
+  if (isNativePlatform()) {
+    const { SecureStoragePlugin } = await import('capacitor-secure-storage-plugin');
+    await SecureStoragePlugin.set({ key: 'org_access_token', value: token });
+  } else {
+    localStorage.setItem('org_access_token', token);
+  }
+};
+
+export const removeOrgAccessTokenAsync = async (): Promise<void> => {
+  if (isNativePlatform()) {
+    try {
+      const { SecureStoragePlugin } = await import('capacitor-secure-storage-plugin');
+      await SecureStoragePlugin.remove({ key: 'org_access_token' });
+    } catch {
+      // Key didn't exist
+    }
+  } else {
+    localStorage.removeItem('org_access_token');
+  }
 };
 
 // ============= TOKEN REFRESH STATE (Singleton) =============
@@ -44,16 +87,24 @@ let refreshPromise: Promise<ApiUserResponse> | null = null;
 
 export const loginUser = async (credentials: LoginCredentials): Promise<ApiResponse> => {
   const baseUrl = getBaseUrl();
+  const isMobile = isNativePlatform();
 
-  console.log('🔐 Login attempt:', { email: credentials.email });
+  const loginEndpoint = isMobile ? '/v2/auth/login/mobile' : '/v2/auth/login';
 
-  const response = await fetch(`${baseUrl}/v2/auth/login`, {
+  // Store rememberMe preference BEFORE the request (so it's available for token storage)
+  await tokenStorageService.setRememberMe(!!credentials.rememberMe);
+
+  const response = await fetch(`${baseUrl}${loginEndpoint}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    credentials: 'include', // CRITICAL: Include cookies for refresh token
-    body: JSON.stringify(credentials)
+    headers: { 'Content-Type': 'application/json' },
+    credentials: isMobile ? 'omit' : 'include',
+    body: JSON.stringify({
+      identifier: credentials.identifier,
+      password: credentials.password,
+      rememberMe: !!credentials.rememberMe,
+      remember_me: !!credentials.rememberMe,
+      ...(isMobile && { deviceId: await tokenStorageService.getDeviceId() })
+    })
   });
 
   if (!response.ok) {
@@ -63,27 +114,32 @@ export const loginUser = async (credentials: LoginCredentials): Promise<ApiRespo
 
   const data = await response.json();
 
-  // Store access token in memory/localStorage (short-lived)
+  // Store access token in memory (web) or native storage (mobile)
   if (data.access_token) {
-    localStorage.setItem('access_token', data.access_token);
-    console.log('✅ Access token stored');
+    await tokenStorageService.setAccessToken(data.access_token);
   }
 
-  // Store minimal user data in localStorage
+  // Store refresh token (mobile always; web when rememberMe for cookie fallback)
+  if (data.refresh_token) {
+    await tokenStorageService.setRefreshToken(data.refresh_token);
+  }
+
+  // Store token expiry
+  if (data.expires_in) {
+    const expiryTimestamp = Date.now() + (data.expires_in * 1000);
+    await tokenStorageService.setTokenExpiry(expiryTimestamp);
+  }
+
+  // Store minimal user data
   if (data.user) {
-    const minimalUserData = {
+    await tokenStorageService.setUserData({
       id: data.user.id,
       email: data.user.email,
       nameWithInitials: data.user.nameWithInitials,
       userType: data.user.userType,
       imageUrl: data.user.imageUrl
-    };
-    localStorage.setItem('user_data', JSON.stringify(minimalUserData));
-    console.log('✅ User data stored (nameWithInitials format)');
+    });
   }
-
-  // Refresh token is automatically stored in httpOnly cookie by server
-  console.log('✅ Login successful, refresh token in httpOnly cookie');
 
   return data;
 };
@@ -91,40 +147,69 @@ export const loginUser = async (credentials: LoginCredentials): Promise<ApiRespo
 // ============= TOKEN REFRESH (Singleton Pattern) =============
 
 /**
- * Refresh access token using httpOnly cookie
- * Uses singleton pattern to prevent multiple concurrent refresh requests
+ * Refresh access token
+ * - Web: POST /v2/auth/refresh with httpOnly cookie (credentials: 'include')
+ * - Mobile: POST /auth/refresh/mobile with refresh_token in body
+ * Singleton pattern prevents concurrent refresh requests.
  */
 export const refreshAccessToken = async (): Promise<ApiUserResponse> => {
   const baseUrl = getBaseUrl();
+  const isMobile = isNativePlatform();
 
-  // If already refreshing, return the existing promise (prevent race conditions)
+  // Reuse in-flight refresh
   if (isRefreshing && refreshPromise) {
-    console.log('🔄 Token refresh already in progress, waiting...');
     return refreshPromise;
   }
 
   isRefreshing = true;
-  console.log('🔄 Refreshing access token...');
 
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${baseUrl}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include', // CRITICAL: Send refresh token cookie
-        headers: {
-          'Content-Type': 'application/json'
+      let response: Response;
+
+      if (isMobile) {
+        // Mobile: always use stored refresh token
+        const refreshToken = await tokenStorageService.getRefreshToken();
+        if (!refreshToken) {
+          throw new Error('No refresh token available');
         }
-      });
+        response = await fetch(`${baseUrl}/auth/refresh/mobile`, {
+          method: 'POST',
+          credentials: 'omit',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            refresh_token: refreshToken,
+            deviceId: await tokenStorageService.getDeviceId()
+          })
+        });
+      } else {
+        // Web: try cookie-based refresh first
+        response = await fetch(`${baseUrl}/v2/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+
+        // If cookie-based refresh fails, try stored refresh token as fallback
+        if (!response.ok) {
+          console.log('🔁 Cookie-based refresh failed, trying stored refresh token...');
+          const storedRefreshToken = await tokenStorageService.getRefreshToken();
+          if (storedRefreshToken) {
+            response = await fetch(`${baseUrl}/v2/auth/refresh`, {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refresh_token: storedRefreshToken })
+            });
+          }
+        }
+      }
 
       if (!response.ok) {
         console.error('❌ Token refresh failed:', response.status);
-        
-        // Clear all auth data on refresh failure
-        clearAuthData();
-        
-        // Dispatch auth failure event
+        await clearAuthData();
         window.dispatchEvent(new CustomEvent('auth:refresh-failed'));
-        
         throw new Error('Token refresh failed');
       }
 
@@ -132,24 +217,32 @@ export const refreshAccessToken = async (): Promise<ApiUserResponse> => {
 
       // Store new access token
       if (data.access_token) {
-        localStorage.setItem('access_token', data.access_token);
-        console.log('✅ New access token stored');
+        await tokenStorageService.setAccessToken(data.access_token);
       }
 
-      // Update user data with new format
+      // Store new refresh token (token rotation — both web and mobile)
+      if (data.refresh_token) {
+        await tokenStorageService.setRefreshToken(data.refresh_token);
+      }
+
+      // Update token expiry
+      if (data.expires_in) {
+        const expiryTimestamp = Date.now() + (data.expires_in * 1000);
+        await tokenStorageService.setTokenExpiry(expiryTimestamp);
+      }
+
+      // Update user data
       if (data.user) {
-        const minimalUserData = {
+        await tokenStorageService.setUserData({
           id: data.user.id,
           email: data.user.email,
           nameWithInitials: data.user.nameWithInitials,
           userType: data.user.userType,
           imageUrl: data.user.imageUrl
-        };
-        localStorage.setItem('user_data', JSON.stringify(minimalUserData));
-        console.log('✅ User data updated (nameWithInitials format)');
+        });
       }
 
-      // Dispatch success event to notify AuthContext
+      // Notify AuthContext
       window.dispatchEvent(new CustomEvent('auth:refresh-success', {
         detail: { user: data.user }
       }));
@@ -166,87 +259,65 @@ export const refreshAccessToken = async (): Promise<ApiUserResponse> => {
 
 // ============= TOKEN VALIDATION =============
 
-/**
- * Validate token and get user data
- * Uses cached user data when available, falls back to /auth/me
- */
 export const validateToken = async (): Promise<ApiUserResponse> => {
   const baseUrl = getBaseUrl();
-  const token = localStorage.getItem('access_token');
-  const cachedUserData = localStorage.getItem('user_data');
+  const isMobile = isNativePlatform();
 
-  // If no access token, try to refresh using httpOnly cookie
+  const token = await tokenStorageService.getAccessToken();
+  const cachedUserData = await tokenStorageService.getUserData();
+
+  // If token is expired or near-expiry, refresh first
+  const expiry = await tokenStorageService.getTokenExpiry();
+  if (token && expiry && Date.now() >= (expiry - 60_000)) {
+    return await refreshAccessToken();
+  }
+
+  // If no access token in memory, try refresh (cookie-based on web)
   if (!token) {
-    console.log('⚠️ No access token, attempting refresh via cookie...');
     try {
       return await refreshAccessToken();
-    } catch (error) {
-      console.error('❌ Refresh failed, user must login');
+    } catch {
       throw new Error('No authentication token found');
     }
   }
 
-  // If user data exists in localStorage, return it (skip /auth/me call)
+  // If user data cached, return it
   if (cachedUserData) {
-    try {
-      const userData = JSON.parse(cachedUserData);
-      console.log('✅ Using cached user data:', {
-        userId: userData.id,
-        email: userData.email,
-        nameWithInitials: userData.nameWithInitials
-      });
-      return userData;
-    } catch (error) {
-      console.warn('⚠️ Failed to parse cached user data');
-    }
+    return cachedUserData;
   }
 
-  // No cached user data, call /auth/me
-  console.log('🔐 Fetching user data from /auth/me...');
-
+  // Fetch from /auth/me
   try {
+    const headers = await getApiHeadersAsync();
     const response = await fetch(`${baseUrl}/auth/me`, {
       method: 'GET',
-      headers: getApiHeaders(),
-      credentials: 'include'
+      headers,
+      credentials: isMobile ? 'omit' : 'include'
     });
 
-    // If 401, try to refresh token
     if (response.status === 401) {
-      console.log('⚠️ Access token expired, attempting refresh...');
       return await refreshAccessToken();
     }
 
     if (!response.ok) {
-      clearAuthData();
+      await clearAuthData();
       throw new Error(`Token validation failed: ${response.status}`);
     }
 
     const responseData = await response.json();
-
-    // Handle both wrapped ({ success, data }) and unwrapped responses
     const userData = responseData.data || responseData;
 
-    // Cache user data with new format
-    const minimalUserData = {
+    await tokenStorageService.setUserData({
       id: userData.id,
       email: userData.email,
       nameWithInitials: userData.nameWithInitials,
       userType: userData.userType,
       imageUrl: userData.imageUrl
-    };
-    localStorage.setItem('user_data', JSON.stringify(minimalUserData));
-
-    console.log('✅ User data fetched and cached:', {
-      userId: userData.id,
-      email: userData.email,
-      nameWithInitials: userData.nameWithInitials
     });
 
     return userData;
   } catch (error) {
-    console.error('❌ Token validation error:', error);
-    clearAuthData();
+    await clearAuthData();
     throw error;
   }
 };
@@ -255,60 +326,114 @@ export const validateToken = async (): Promise<ApiUserResponse> => {
 
 export const logoutUser = async (): Promise<void> => {
   const baseUrl = getBaseUrl();
-
-  console.log('🚪 Logging out...');
+  const isMobile = isNativePlatform();
 
   try {
-    // Call logout endpoint to revoke refresh token (stored in httpOnly cookie)
-    await fetch(`${baseUrl}/auth/logout`, {
-      method: 'POST',
-      credentials: 'include', // CRITICAL: Send refresh token cookie to revoke
-      headers: {
-        'Content-Type': 'application/json'
+    if (isMobile) {
+      const refreshToken = await tokenStorageService.getRefreshToken();
+      if (refreshToken) {
+        await fetch(`${baseUrl}/auth/logout/mobile`, {
+          method: 'POST',
+          credentials: 'omit',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            refresh_token: refreshToken,
+            deviceId: await tokenStorageService.getDeviceId()
+          })
+        });
       }
-    });
-    console.log('✅ Logout endpoint called, refresh token revoked');
-  } catch (error) {
-    console.warn('⚠️ Logout endpoint call failed:', error);
+    } else {
+      await fetch(`${baseUrl}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  } catch {
+    // Ignore — token will expire
   }
 
-  // Clear all auth data from localStorage
-  clearAuthData();
-  
-  console.log('✅ All auth data cleared');
+  await clearAuthData();
 };
 
-// ============= HELPER FUNCTIONS =============
+// ============= SESSION MANAGEMENT =============
 
-/**
- * Clear all authentication data from localStorage
- */
-const clearAuthData = (): void => {
-  // Clear auth tokens
-  localStorage.removeItem('access_token');
-  localStorage.removeItem('user_data');
-  localStorage.removeItem('token');
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('org_access_token');
-
-  // Clear context selections
-  localStorage.removeItem('selectedInstitute');
-  localStorage.removeItem('selectedClass');
-  localStorage.removeItem('selectedSubject');
-  localStorage.removeItem('selectedChild');
-  localStorage.removeItem('selectedOrganization');
+export const getActiveSessions = async (params?: { page?: number; limit?: number; platform?: string; sortBy?: string; sortOrder?: string }): Promise<{ sessions: any[]; pagination?: any; summary?: any }> => {
+  const baseUrl = getBaseUrl();
+  const headers = await getApiHeadersAsync();
+  const query = new URLSearchParams();
+  if (params?.page) query.set('page', String(params.page));
+  if (params?.limit) query.set('limit', String(params.limit));
+  if (params?.platform) query.set('platform', params.platform);
+  if (params?.sortBy) query.set('sortBy', params.sortBy);
+  if (params?.sortOrder) query.set('sortOrder', params.sortOrder);
+  const qs = query.toString();
+  const response = await fetch(`${baseUrl}/auth/sessions${qs ? `?${qs}` : ''}`, {
+    method: 'GET',
+    headers,
+    credentials: getCredentialsMode()
+  });
+  if (!response.ok) throw new Error('Failed to load sessions');
+  const data = await response.json();
+  return {
+    sessions: data.sessions || data.data || (Array.isArray(data) ? data : []),
+    pagination: data.pagination,
+    summary: data.summary
+  };
 };
 
-/**
- * Check if user is currently authenticated (has valid token)
- */
+export const revokeSession = async (sessionId: string): Promise<void> => {
+  const baseUrl = getBaseUrl();
+  const headers = await getApiHeadersAsync();
+  const response = await fetch(`${baseUrl}/auth/sessions/revoke/${sessionId}`, {
+    method: 'POST',
+    headers,
+    credentials: getCredentialsMode()
+  });
+  if (!response.ok) throw new Error('Failed to revoke session');
+};
+
+export const revokeAllSessions = async (): Promise<void> => {
+  const baseUrl = getBaseUrl();
+  const headers = await getApiHeadersAsync();
+  const response = await fetch(`${baseUrl}/auth/sessions/revoke-all`, {
+    method: 'POST',
+    headers,
+    credentials: getCredentialsMode()
+  });
+  if (!response.ok) throw new Error('Failed to revoke all sessions');
+};
+
+// ============= HELPERS =============
+
+const clearAuthData = async (): Promise<void> => {
+  await tokenStorageService.clearAll();
+  if (!isNativePlatform()) {
+    localStorage.removeItem('selectedInstitute');
+    localStorage.removeItem('selectedClass');
+    localStorage.removeItem('selectedSubject');
+    localStorage.removeItem('selectedChild');
+    localStorage.removeItem('selectedOrganization');
+  }
+};
+
+export const isAuthenticatedAsync = async (): Promise<boolean> => {
+  return await tokenStorageService.isAuthenticated();
+};
+
+/** @deprecated Use isAuthenticatedAsync() */
 export const isAuthenticated = (): boolean => {
-  return !!localStorage.getItem('access_token');
+  return !!tokenStorageService.getAccessTokenSync();
 };
 
-/**
- * Get current access token
- */
-export const getAccessToken = (): string | null => {
-  return localStorage.getItem('access_token');
+export const getAccessTokenAsync = async (): Promise<string | null> => {
+  return await tokenStorageService.getAccessToken();
 };
+
+/** @deprecated */
+export const getAccessToken = (): string | null => {
+  return tokenStorageService.getAccessTokenSync();
+};
+
+// Re-export
+export { isNativePlatform, tokenStorageService };

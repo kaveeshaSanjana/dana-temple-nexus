@@ -130,5 +130,28 @@ export type {
   TransportEnrollmentsResponse
 } from './transport.api';
 
+// Structured Lectures API
+export { structuredLecturesApi } from './structuredLectures.api';
+export type {
+  StructuredLecture,
+  CreateStructuredLectureDto,
+  UpdateStructuredLectureDto,
+  StructuredLecturesResponse,
+  StructuredLectureFilterParams
+} from './structuredLectures.api';
+export { userCardApi } from './userCard.api';
+export type {
+  Card,
+  CardPayment,
+  UserIdCardOrder,
+  CardType,
+  CardStatus,
+  OrderStatus,
+  PaymentType,
+  PaymentStatus,
+  PaginatedCardsResponse,
+  PaginatedOrdersResponse,
+} from './userCard.api';
+
 // Re-export auth API utilities
 export { getBaseUrl, getApiHeaders } from '@/contexts/utils/auth.api';

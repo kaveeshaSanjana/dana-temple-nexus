@@ -14,7 +14,7 @@ import { TeacherSelectorDialog } from '@/components/dialogs/TeacherSelectorDialo
 import { instituteClassesApi } from '@/api/instituteClasses.api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { getBaseUrl } from '@/contexts/utils/auth.api';
+import { getBaseUrl, getAccessTokenAsync } from '@/contexts/utils/auth.api';
 import CreateClassForm from '@/components/forms/CreateClassForm';
 import UpdateClassForm from '@/components/forms/UpdateClassForm';
 import { AccessControl } from '@/utils/permissions';
@@ -122,13 +122,15 @@ const Classes = () => {
   const canDelete = AccessControl.hasPermission(userRole, 'delete-class') && !isInstituteAdmin;
   const canCreate = userRole === 'InstituteAdmin';
   const canAdd = canCreate;
-  const getApiHeaders = () => {
-    const token = localStorage.getItem('access_token');
+  
+  const getApiHeaders = async () => {
+    const token = await getAccessTokenAsync();
     return {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     };
   };
+  
   const fetchClasses = async (forceRefresh = false, customLimit?: number) => {
     if (!selectedInstitute?.id) {
       toast({
@@ -328,6 +330,15 @@ const Classes = () => {
   // Apply pagination to filtered results
   const paginatedClasses = filteredClasses.slice(page * rowsPerPage, (page + 1) * rowsPerPage);
   const columns = [
+    {
+      key: 'id',
+      header: 'Class ID',
+      render: (value: string) => (
+        <span className="inline-flex items-center rounded-md border border-border bg-muted px-2 py-1 font-mono text-sm sm:text-base font-semibold text-foreground">
+          {value}
+        </span>
+      )
+    },
     {
       key: 'imageUrl',
       header: 'Image',

@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Menu, LogOut, User, Camera } from 'lucide-react';
+import { Menu, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { 
@@ -11,27 +12,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import ProfileImageUpload from '@/components/ProfileImageUpload';
 import surakshaLogo from '@/assets/suraksha-logo.png';
 import { enhancedCachedClient } from '@/api/enhancedCachedClient';
 import SafeImage from '@/components/ui/SafeImage';
+import { getImageUrl } from '@/utils/imageUrlHelper';
+
 interface HeaderProps {
   onMenuClick: () => void;
 }
 
 const Header = ({ onMenuClick }: HeaderProps) => {
-  const { user, logout, selectedInstitute, validateUserToken } = useAuth();
-  const [showImageUpload, setShowImageUpload] = useState(false);
-  const [currentImageUrl, setCurrentImageUrl] = useState('');
-
-  // Sync user image URL whenever it changes
-  React.useEffect(() => {
-    if (user?.imageUrl) {
-      setCurrentImageUrl(user.imageUrl);
-    } else {
-      setCurrentImageUrl('');
-    }
-  }, [user?.imageUrl]);
+  const { user, logout, selectedInstitute } = useAuth();
+  const navigate = useNavigate();
 
   // Map backend instituteUserType to display role
   const mapInstituteRoleToDisplayRole = (raw?: string) => {
@@ -44,6 +36,10 @@ const Header = ({ onMenuClick }: HeaderProps) => {
         return 'Teacher';
       case 'ATTENDANCE_MARKER':
         return 'AttendanceMarker';
+      case 'PARENT':
+        return 'Parent';
+      case 'ORGANIZATION_MANAGER':
+        return 'OrganizationManager';
       default:
         return undefined;
     }
@@ -51,132 +47,109 @@ const Header = ({ onMenuClick }: HeaderProps) => {
 
   // Display role: use institute-specific role if available, otherwise global role
   const displayRole = selectedInstitute?.userRole 
-    ? mapInstituteRoleToDisplayRole(selectedInstitute.userRole) 
+    ? mapInstituteRoleToDisplayRole(selectedInstitute.userRole) || mapInstituteRoleToDisplayRole(selectedInstitute.instituteUserType)
     : user?.role;
 
   const [instituteAvatarUrl, setInstituteAvatarUrl] = useState<string>('');
 
   React.useEffect(() => {
+    let cancelled = false;
+    
     const load = async () => {
       try {
-        if (!selectedInstitute?.id) { setInstituteAvatarUrl(''); return; }
+        if (!selectedInstitute?.id) { 
+          setInstituteAvatarUrl(''); 
+          return; 
+        }
+        
         const resp = await enhancedCachedClient.get<any>(
           `/institute-users/institute/${selectedInstitute.id}/me`,
           {},
-          { ttl: 60, forceRefresh: false, userId: selectedInstitute.id }
+          { ttl: 300, forceRefresh: false, userId: selectedInstitute.id }
         );
-        setInstituteAvatarUrl(resp?.instituteUserImageUrl || '');
-      } catch (err) {
+        if (!cancelled) {
+          setInstituteAvatarUrl(resp?.instituteUserImageUrl || '');
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        // On rate limit or error, just keep existing avatar or clear it
+        console.warn('Failed to load institute avatar:', err?.message);
+        if (err?.message?.includes('Too many requests')) {
+          return;
+        }
         setInstituteAvatarUrl('');
       }
     };
     load();
+    
+    return () => { cancelled = true; };
   }, [selectedInstitute?.id]);
 
   const handleLogout = () => {
     logout();
   };
-  const handleImageUpdate = async (newImageUrl: string) => {
-    setCurrentImageUrl(newImageUrl);
-    setShowImageUpload(false);
-    // Refresh user data from backend to persist the image
-    try {
-      await validateUserToken();
-    } catch (error) {
-      console.error('Failed to refresh user data:', error);
-    }
-  };
+
+  // Avatar image priority: institute user image → user profile image → fallback
+  const avatarImageUrl = instituteAvatarUrl 
+    ? getImageUrl(instituteAvatarUrl) 
+    : (user?.imageUrl ? getImageUrl(user.imageUrl) : '');
 
   return (
-    <header className="lg:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-3 sticky top-0 z-40">
+    <header className="lg:hidden bg-background border-b border-border px-3 sm:px-4 py-3 sm:py-4 sticky top-0 z-40 pt-safe-top">
       <div className="flex items-center justify-between">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onMenuClick}
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
-          aria-label="Open menu"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-        
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <SafeImage 
             src={selectedInstitute?.logo || surakshaLogo} 
             alt={selectedInstitute?.shortName ? "Institute logo" : "SurakshaLMS logo"}
-            className="h-8 w-8 object-contain rounded"
+            className="h-10 w-10 object-contain rounded-lg"
           />
-          <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white truncate">
-            {selectedInstitute?.shortName || 'SurakshaLMS'}
-          </h1>
+          <div className="flex flex-col">
+            <h1 className="text-lg font-semibold text-foreground truncate leading-tight">
+              {selectedInstitute?.shortName || 'SurakshaLMS'}
+            </h1>
+            {displayRole && (
+              <span className="text-[11px] text-muted-foreground leading-tight">{displayRole}</span>
+            )}
+          </div>
         </div>
         
-        <div className="flex items-center space-x-1 sm:space-x-2">
+        <div className="flex items-center">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="p-1 hover:bg-gray-100 rounded-full relative group"
-                aria-label="User menu"
-              >
-                <Avatar className="h-9 w-9 border-2 border-border transition-all group-hover:border-primary">
-                  {instituteAvatarUrl ? (
+              <button className="focus:outline-none rounded-full">
+                <Avatar className="h-10 w-10 border-2 border-border cursor-pointer">
+                  {avatarImageUrl && (
                     <AvatarImage 
-                      src={instituteAvatarUrl}
+                      src={avatarImageUrl}
                       alt={user?.name}
                       className="object-cover"
                     />
-                  ) : null}
-                  <AvatarFallback className="bg-muted">
-                    <User className="h-5 w-5" />
+                  )}
+                  <AvatarFallback className="bg-muted text-xs">
+                    <User className="h-4 w-4" />
                   </AvatarFallback>
                 </Avatar>
-              </Button>
+              </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent 
-              align="end" 
-              className="w-48 bg-white border border-gray-200"
-            >
-              <DropdownMenuItem disabled className="cursor-default">
-                <span className="font-medium text-gray-900 truncate">
-                  {user?.name}
-                </span>
+            <DropdownMenuContent align="end" className="w-48 z-50">
+              <div className="px-2 py-1.5">
+                <p className="text-sm font-medium text-foreground truncate">{user?.name || 'User'}</p>
+                <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/profile')} className="cursor-pointer text-xs">
+                <User className="h-3.5 w-3.5 mr-2" />
+                Profile
               </DropdownMenuItem>
-              <DropdownMenuItem disabled className="cursor-default">
-                <span className="text-sm text-gray-500">
-                  {displayRole}
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-gray-200" />
-              <DropdownMenuItem 
-                onClick={() => setShowImageUpload(true)}
-                className="cursor-pointer hover:bg-gray-100"
-              >
-                <Camera className="mr-2 h-4 w-4" />
-                Change Photo
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={handleLogout}
-                className="cursor-pointer hover:bg-gray-100"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-xs text-destructive">
+                <LogOut className="h-3.5 w-3.5 mr-2" />
                 Logout
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
-
-      {showImageUpload && (
-        <ProfileImageUpload
-          currentImageUrl={currentImageUrl}
-          onImageUpdate={handleImageUpdate}
-          isOpen={showImageUpload}
-          onClose={() => setShowImageUpload(false)}
-          dialogOnly={true}
-        />
-      )}
     </header>
   );
 };

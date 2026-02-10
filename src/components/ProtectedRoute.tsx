@@ -217,6 +217,22 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     customValidation
   ]);
 
+  // Fast-path: if auth is initialized and there's no user, redirect immediately.
+  // This prevents showing previously visited protected pages after logout.
+  if (isInitialized && !isLoading && !user) {
+    const fullPath = location.pathname + location.search + location.hash;
+    return (
+      <Navigate
+        to={redirectTo}
+        state={{
+          from: fullPath,
+          error: 'User not authenticated'
+        }}
+        replace
+      />
+    );
+  }
+
   // Show loading state while validating
   if (isLoading || isValidating) {
     return (
@@ -232,16 +248,17 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Redirect if validation failed
   if (validationError) {
     console.log('🔄 Redirecting to:', redirectTo, 'Reason:', validationError);
-    
+    const fullPath = location.pathname + location.search + location.hash;
+
     // Preserve the intended destination for redirect after login
     return (
-      <Navigate 
-        to={redirectTo} 
-        state={{ 
-          from: location.pathname,
+      <Navigate
+        to={redirectTo}
+        state={{
+          from: fullPath,
           error: validationError
-        }} 
-        replace 
+        }}
+        replace
       />
     );
   }
