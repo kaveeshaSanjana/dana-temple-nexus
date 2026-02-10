@@ -13,9 +13,10 @@ import { AccessControl } from '@/utils/permissions';
 import ProfileImageUpload from '@/components/ProfileImageUpload';
 import { apiClient } from '@/api/client';
 import { useToast } from '@/hooks/use-toast';
-import { User, Mail, Phone, MapPin, Calendar, Shield, Lock, Eye, EyeOff, Camera, Briefcase, GraduationCap, CreditCard, Languages, Monitor, Smartphone, Tablet, LogOut, ShieldAlert, RefreshCw } from 'lucide-react';
+import { User, Mail, Phone, MapPin, Calendar, Shield, Lock, Eye, EyeOff, Camera, Briefcase, GraduationCap, CreditCard, Languages, Monitor, Smartphone, Tablet, LogOut, ShieldAlert, RefreshCw, Link2 } from 'lucide-react';
 import { getActiveSessions, revokeSession, revokeAllSessions } from '@/contexts/utils/auth.api';
 import { useInstituteRole } from '@/hooks/useInstituteRole';
+import ConnectedApps from '@/components/ConnectedApps';
 
 interface UserData {
   id: string;
@@ -375,15 +376,18 @@ const Profile = () => {
         setActiveProfileTab(val);
         if (val === 'devices' && sessions.length === 0) loadSessions();
       }}>
-        <TabsList className="w-full grid grid-cols-3">
-          <TabsTrigger value="details" className="gap-2">
-            <User className="h-4 w-4" /> Details
+        <TabsList className="w-full grid grid-cols-4">
+          <TabsTrigger value="details" className="gap-1 text-xs sm:text-sm">
+            <User className="h-4 w-4" /> <span className="hidden sm:inline">Details</span>
           </TabsTrigger>
-          <TabsTrigger value="change-password" className="gap-2">
-            <Lock className="h-4 w-4" /> Security
+          <TabsTrigger value="change-password" className="gap-1 text-xs sm:text-sm">
+            <Lock className="h-4 w-4" /> <span className="hidden sm:inline">Security</span>
           </TabsTrigger>
-          <TabsTrigger value="devices" className="gap-2">
-            <Monitor className="h-4 w-4" /> Devices
+          <TabsTrigger value="devices" className="gap-1 text-xs sm:text-sm">
+            <Monitor className="h-4 w-4" /> <span className="hidden sm:inline">Devices</span>
+          </TabsTrigger>
+          <TabsTrigger value="apps" className="gap-1 text-xs sm:text-sm">
+            <Link2 className="h-4 w-4" /> <span className="hidden sm:inline">Apps</span>
           </TabsTrigger>
         </TabsList>
 
@@ -573,6 +577,10 @@ const Profile = () => {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="apps" className="mt-4">
+          <ConnectedApps />
         </TabsContent>
       </Tabs>
     </div>

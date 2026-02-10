@@ -151,7 +151,7 @@ const App = () => {
                 {/* Main Routes - All handled by Index/AppContent */}
                 <Route path="/" element={<Index />} />
 
-                {/* Google OAuth Callback */}
+                {/* Google Drive OAuth - backend redirects back here with query params */}
                 <Route path="/auth/google/callback" element={<GoogleAuthCallback />} />
 
                 {/* Hierarchical Routes with Context */}
